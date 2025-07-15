@@ -1,0 +1,422 @@
+// ChildView.cpp : implementation of the CChildView class
+//
+#include "pch.h"
+#include "framework.h"
+#include "Trade View.h"
+#include "ChildView.h"
+#include "DrawChart.h"
+#include "beehive.h"
+
+#ifdef _DEBUG
+#define new DEBUG_NEW
+#endif
+
+#define WM_SCAN_FINISHED		(WM_USER+0x0001)
+#define WM_BETTER_RESULT		(WM_USER+0x0002)
+
+constexpr COLORREF color[] = { RGB(0,255,0), RGB(255,0,0), RGB(0,0,255), };
+
+// CChildView
+CChildView::CChildView()
+	:m_isScanningMode{ FALSE }
+{
+	LOGFONT lf{};
+
+	lf.lfHeight = 25;
+	lf.lfWeight = FW_BOLD;
+	wcscpy_s(lf.lfFaceName, _T("Arial"));
+
+	m_fontScanning.CreateFontIndirect(&lf);
+}
+
+CChildView::~CChildView()
+{
+}
+
+BEGIN_MESSAGE_MAP(CChildView, CWnd)
+	ON_WM_PAINT()
+	ON_COMMAND(ID_ADD_FOLDER, &CChildView::OnAddFolder)
+	ON_UPDATE_COMMAND_UI(ID_ADD_FOLDER, &CChildView::OnUpdateAddFolder)
+	ON_COMMAND(ID_SCAN_TRADES, &CChildView::OnScanTrades)
+	ON_UPDATE_COMMAND_UI(ID_SCAN_TRADES, &CChildView::OnUpdateScanTrades)
+	ON_WM_CREATE()
+	ON_WM_SIZE()
+	ON_NOTIFY(LVN_ITEMCHANGED, ID_LIST_CTRL, OnListItemChanged)
+	ON_WM_DESTROY()
+	//ON_MESSAGE(WM_SCAN_FINISHED, OnScanFinished)
+	//ON_MESSAGE(WM_BETTER_RESULT, OnBetterResult)
+END_MESSAGE_MAP()
+
+// CChildView message handlers
+BOOL CChildView::PreCreateWindow(CREATESTRUCT& cs)
+{
+	if (!CWnd::PreCreateWindow(cs))
+		return FALSE;
+
+	cs.dwExStyle |= WS_EX_CLIENTEDGE;
+	cs.style &= ~WS_BORDER;
+	cs.lpszClass = AfxRegisterWndClass(CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
+		::LoadCursor(nullptr, IDC_ARROW), reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1), nullptr);
+
+	return TRUE;
+}
+
+void CChildView::OnPaint()
+{
+	constexpr auto margin{ 20 };
+
+	CPaintDC dc(this); // device context for painting
+
+	dc.FillSolidRect(m_Canvas, RGB(20, 20, 20));
+	auto rect{ m_Canvas };
+	rect.DeflateRect(margin, margin, margin, margin);
+
+	if (m_isScanningMode)
+	{
+		if (m_Scan.IsScanning())
+		{
+			int const iSave{ dc.SaveDC() };
+			CString str;
+			//str.Format(_T("%s\n\n%I64u / %I64u\n\n%.2g%%"),
+			//	m_bStopScanningThread ? _T("...STOPPING...") : _T("...scanning..."),
+			//	m_scanFinished,
+			//	m_scanTotal,
+			//	m_scanTotal ? m_scanFinished * 100. / m_scanTotal : .0);
+			dc.SetTextColor(RGB(200, 200, 0));
+			dc.SetBkMode(TRANSPARENT);
+			dc.SelectObject(&m_fontScanning);
+			dc.DrawText(str, rect, DT_CENTER | DT_VCENTER);
+			dc.RestoreDC(iSave);
+		}
+		else
+		{
+
+		}
+	}
+	else
+	{
+		int i{ 0 };
+		constexpr int color_num{ sizeof(color) / sizeof(COLORREF) };
+		auto pos{ m_List.GetFirstSelectedItemPosition() };
+
+		Draw::CummulativeChart draw;
+		while (pos)
+		{
+			int ind = m_List.GetNextSelectedItem(pos);
+			auto data = m_List.GetItemData(ind);
+			draw.Add(m_Files[data], color[i++ % color_num]);
+		}
+		draw.Draw(dc, rect);
+	}
+}
+
+
+void CChildView::OnAddFolder()
+{
+	BROWSEINFO info = {};
+	WCHAR path[MAX_PATH + 1];
+
+	auto pidl = ::SHBrowseForFolder(&info);
+	if (pidl && ::SHGetPathFromIDList(pidl, path))
+		LoadFolder(path);
+}
+
+void CChildView::OnUpdateAddFolder(CCmdUI* pCmdUI)
+{
+	pCmdUI->Enable(!m_Scan.IsScanning());
+}
+
+void CChildView::LoadFolder(fs::path const& path)
+{
+	BeginWaitCursor();
+	m_List.SetRedraw(FALSE);
+
+	auto proc = [](fs::path entry)->TradeFile { return { entry }; };
+
+	/*	std::ifstream file{ fname };
+	std::string line;
+
+	if (file.is_open())
+		ParseText(file);
+
+	//std::ostringstream buffer;
+	//buffer << file.rdbuf();  // read the whole file
+	//file.close();
+
+	//std::istringstream iss{ buffer.str() };
+
+}*/
+
+	std::vector<std::future<TradeFile>> ths;
+
+	for (auto const& entry : fs::directory_iterator(path))
+		if (entry.is_regular_file())
+			if (entry.path().extension() == L".csv")
+				ths.push_back(std::async(proc, entry));
+
+	for (auto& f : ths)
+	{
+		f.wait();
+		m_Files.push_back(f.get());
+		AddListItem(m_Files.back().GetStats());
+	}
+
+	for (int i = 0; i < m_List.GetHeaderCtrl()->GetItemCount(); i++)
+		m_List.SetColumnWidth(i, LVSCW_AUTOSIZE);
+
+	m_List.SetRedraw();
+	EndWaitCursor();
+}
+
+void CChildView::FoundBetterResults(Scan::BestModels const& best)
+{
+	{
+		CSingleLock _o{ &m_Mtx, TRUE };
+		m_Best = best;
+	}
+	UpdateScanningList();
+}
+
+void CChildView::OnScanTrades()
+{
+	if (m_Scan.IsScanning())
+	{
+		BeginWaitCursor();
+		m_Scan.Stop();
+		EndWaitCursor();
+	}
+	else if (m_SetsDlg.DoModal() == IDOK)
+	{
+		PrepareList(TRUE);
+		m_Scan.Start();
+		m_scanFinished = m_scanTotal = 0ull;
+		m_pScanTh = ::AfxBeginThread(ScanProc, this);
+		Invalidate();
+	}
+}
+
+void CChildView::OnUpdateScanTrades(CCmdUI* pCmdUI)
+{
+	pCmdUI->Enable(m_Files.size() > 1 && !IsStoppingScan());
+	pCmdUI->SetCheck(m_pScanTh != nullptr);
+}
+
+int CChildView::OnCreate(LPCREATESTRUCT lpCreateStruct)
+{
+	if (CWnd::OnCreate(lpCreateStruct) == -1)
+		return -1;
+
+	CRect rect;
+	GetClientRect(rect);
+	rect.right = rect.left + rect.Width() / 3;
+
+	if (!m_List.Create(WS_VISIBLE | WS_CHILD | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS, rect, this, ID_LIST_CTRL))
+		return -1;
+	m_List.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+	PrepareList(FALSE);
+
+	return 0;
+}
+
+void CChildView::OnSize(UINT nType, int cx, int cy)
+{
+	CWnd::OnSize(nType, cx, cy);
+
+	m_Canvas = { 0,0,cx,cy };
+	m_Canvas.left = min(cx / 3, 400);
+
+	m_List.MoveWindow(0, 0, m_Canvas.left, cy, FALSE);
+}
+
+void CChildView::OnListItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	auto pNMLV{ reinterpret_cast<LPNMLISTVIEW>(pNMHDR) };
+
+	if ((pNMLV->uChanged & LVIF_STATE) &&
+		(pNMLV->uNewState & LVIS_SELECTED) != (pNMLV->uOldState & LVIS_SELECTED))
+		InvalidateRect(m_Canvas);
+
+	*pResult = 0;
+}
+
+void CChildView::AddListItem(TRADES_STATISTIC const& stat)
+{
+	CString str;
+	LVITEM item{};
+
+	//m_List.InsertColumn(col++, _T("#"));
+	item.iItem = m_List.GetItemCount();
+	item.mask = LVIF_TEXT | LVIF_PARAM;
+	str.Format(_T("%d"), item.iItem + 1);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	item.lParam = item.iItem;
+	m_List.InsertItem(&item);
+
+	//m_List.InsertColumn(col++, _T("NET"));
+	item.mask = LVIF_TEXT;
+	++item.iSubItem;
+	str.Format(_T("%.2f"), (stat.profit - stat.loss) / 100.);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	//m_List.InsertColumn(col++, _T("Profit"));
+	++item.iSubItem;
+	str.Format(_T("%.2f"), stat.profit / 100.);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	//m_List.InsertColumn(col++, _T("Loss"));
+	++item.iSubItem;
+	str.Format(_T("%.2f"), stat.loss / 100.);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	//m_List.InsertColumn(col++, _T("Factor"));
+	++item.iSubItem;
+	str.Format(_T("%.2f"), double(stat.profit) / stat.loss);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	//m_List.InsertColumn(col++, _T("Trades"));
+	++item.iSubItem;
+	str.Format(_T("%d"), stat.iWon + stat.iLost);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	//m_List.InsertColumn(col++, _T("Won"));
+	++item.iSubItem;
+	str.Format(_T("%d"), stat.iWon);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	//m_List.InsertColumn(col++, _T("Lost"));
+	++item.iSubItem;
+	str.Format(_T("%d"), stat.iLost);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	//m_List.InsertColumn(col++, _T("std error"));
+	++item.iSubItem;
+	str.Format(_T("%.4g"), stat.custom);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+}
+
+void CChildView::PrepareList(BOOL const bList4Scan)
+{
+	m_List.DeleteAllItems();
+	while (m_List.GetHeaderCtrl()->GetItemCount())
+		m_List.DeleteColumn(0);
+
+	int col{ 0 };
+	if (m_isScanningMode = bList4Scan)
+	{
+		m_List.InsertColumn(col++, _T("#"));
+		m_List.InsertColumn(col++, _T("NET"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("Factor"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("Custom"), LVCFMT_RIGHT);
+	}
+	else
+	{
+		m_List.InsertColumn(col++, _T("#"));
+		m_List.InsertColumn(col++, _T("NET"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("Profit"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("Loss"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("Factor"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("Trades"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("Won"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("Lost"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("Custom"), LVCFMT_RIGHT);
+	}
+}
+
+void CChildView::UpdateListScanResults(size_t const index)
+{
+	auto& model{ m_Best[index] };
+
+	LVITEM item{};
+	CString str;
+
+	item.mask = LVIF_TEXT;
+	item.iItem = (int)index;
+	/*for (auto& sub : model.GetSubModels())
+	{
+		if (!str.IsEmpty())
+			str += _T(" + ");
+		str+=sub->GetStats().
+	}*/
+	str.Format(_T("%I64u"), index + 1);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	item.mask = LVIF_TEXT;
+	++item.iSubItem;
+	str.Format(_T("%.2g"), model.GetNet());
+	m_List.SetItem(&item);
+
+	++item.iSubItem;
+	str.Format(_T("%.2g"), model.GetFactor());
+	m_List.SetItem(&item);
+
+	++item.iSubItem;
+	str.Format(_T("%.2g"), model.GetCustom());
+	m_List.SetItem(&item);
+}
+
+void CChildView::UpdateScanningList()
+{
+	while (m_List.GetItemCount() < m_Best.size())
+		m_List.InsertItem(0, _T(""));
+
+	for (size_t i = 0; i < m_Best.size(); i++)
+		UpdateListScanResults(i);
+
+	for (int i = 0; i < m_List.GetHeaderCtrl()->GetItemCount(); i++)
+		m_List.SetColumnWidth(i, LVSCW_AUTOSIZE);
+}
+
+void CChildView::OnDestroy()
+{
+	StopScanningThread();
+	CWnd::OnDestroy();
+}
+
+LRESULT CChildView::OnScanFinished(WPARAM wParam, LPARAM lParam)
+{
+	m_scanFinished = (size_t)wParam;
+	m_scanTotal = (size_t)lParam;
+	Invalidate();
+	return 0;
+}
+
+LRESULT CChildView::OnBetterResult(WPARAM wParam, LPARAM)
+{
+	auto pBest{reinterpret_cast<Scan::BestModels*>(wParam)};
+	m_Best = *pBest;
+	UpdateScanningList();
+	
+	return LRESULT(0);
+}
+
+BOOL CChildView::IsStoppingScan()const
+{
+	CSingleLock _o{ &m_Mtx, TRUE };
+	return m_bStopScanningThread;
+}
+
+void CChildView::StopScanningThread()
+{
+	if (m_pScanTh)
+	{
+		EnableWindow(FALSE);
+		{
+			CSingleLock _o{ &m_Mtx, TRUE };
+			m_bStopScanningThread = TRUE;
+		}
+
+		::WaitForSingleObject(*m_pScanTh, INFINITE);
+
+		m_pScanTh = NULL;
+		EnableWindow();
+	}
+}

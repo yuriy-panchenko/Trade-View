@@ -1,95 +1,194 @@
 #include "pch.h"
 #include "Models.h"
+#include "CScanSettingsDlg.h"
+#include "CWorketThread.h"
+#include "Trade View.h"
+#include "MainFrm.h"
+
+#ifdef DEBUG
+//#define DEBUG_SINGLE_THREAD
+#endif // DEBUG
+
+
 namespace Scan
 {
-	UINT Models::ScanProc(LPVOID pData)
+	/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	Models::Models()
+		:m_pSets{ nullptr }
+		, m_pWaitTh{ nullptr }
+		, m_bStopping{ FALSE }
 	{
-		auto& view{ *static_cast<CChildView*>(pData) };
+	}
 
-		std::vector<TradeFile*> files;
-		files.reserve(view.m_Files.size());
+	void Models::Start(std::vector<TradeFile> const& files, CScanSettingsDlg const& dlg)
+	{
+		m_pSets = &dlg;
+		m_Files.clear();
+		m_Files.reserve(files.size());
+		m_bStopping = FALSE;
+		ZeroMemory(&m_Info, sizeof INFO);
 
-		for (auto& file : view.m_Files)
+		/*int scans{ 0 };
+		if (dlg.m_Scan4_Net)
+			scans += dlg.m_Scan_Count;
+		if (dlg.m_Scan4_Factor)
+			scans += dlg.m_Scan_Count;
+		if (dlg.m_Scan4_Custom)
+			scans += dlg.m_Scan_Count;
+		scans = max(scans, dlg.m_Scan_Count);*/
+
+		m_Comp.Init(dlg.m_Scan_Count, dlg.m_Scan4_Net, dlg.m_Scan4_Factor, dlg.m_Scan4_Custom);
+
+		for (auto& file : files)
 		{
 			auto& stat{ file.GetStats() };
-			if (view.m_SetsDlg.m_UseMinProfit && (stat.profit - stat.loss) / 100. < view.m_SetsDlg.m_Min_Profit)
+			if (dlg.m_UseMinProfit && (stat.profit - stat.loss) / 100. < dlg.m_Min_Profit)
 				continue;
-			if (view.m_SetsDlg.m_UseMinTrades && (stat.iWon + stat.iLost) < view.m_SetsDlg.m_Min_Trades)
+			if (dlg.m_UseMinTrades && (stat.iWon + stat.iLost) < dlg.m_Min_Trades)
 				continue;
-			files.push_back(&file);
+			m_Files.push_back(&file);
 		}
 
-		if (files.size() > 1)
+		if (m_Files.size() < 2)
+			::AfxMessageBox(_T("There nothing to scan!"), MB_OK | MB_ICONERROR);
+		else m_pWaitTh = ::AfxBeginThread(WaitProc, this);
+	}
+
+	void Models::Stop(BOOL bWait2Finish)
+	{
+		if (m_pWaitTh)
 		{
-			CHive hive;
-			using comp_helper = std::unique_ptr<CompareHelper>;
-			std::vector<comp_helper> helpers;
-			int scans{ 0 };
-			if (view.m_SetsDlg.m_Scan4_Net)
-				scans += view.m_SetsDlg.m_Scan_Count;
-			if (view.m_SetsDlg.m_Scan4_Factor)
-				scans += view.m_SetsDlg.m_Scan_Count;
-			if (view.m_SetsDlg.m_Scan4_Custom)
-				scans += view.m_SetsDlg.m_Scan_Count;
-			scans = max(scans, view.m_SetsDlg.m_Scan_Count);
+			CSingleLock _o{ &m_CS, TRUE };
+			m_bStopping = TRUE;
+			_o.Unlock();
 
-			Scan::CompareObj comp{ scans, view.m_SetsDlg.m_Scan4_Net, view.m_SetsDlg.m_Scan4_Factor, view.m_SetsDlg.m_Scan4_Custom };
-
-			////////////////////////////////////////////////////////////////////
-			auto find_helper = [&helpers](CWinThread* pTh)
-				{
-					auto iter{ helpers.begin() };
-					for (; iter != helpers.end(); iter++)
-						if (iter->get()->pTh == pTh)
-							break;
-					return iter;
-				};
-
-			////////////////////////////////////////////////////////////////////
-			size_t const total_scans{ files.size() - 1 };
-			size_t finished_scans{ 0 };
-
-			auto finish_thread = [&](CWinThread* pTh)
-				{
-					auto iter{ find_helper(pTh) };
-					if (iter != helpers.end())
-					{
-						bool doUpdate{ false };
-
-						for (auto& res : iter->get()->comp.GetBest())
-							doUpdate |= comp.Test(res);
-
-						if (doUpdate)
-						{
-							auto best{ comp.GetBest() };
-							view.SendMessage(WM_BETTER_RESULT, (WPARAM)&best);
-							//view.FoundBetterResults(comp.GetBest());
-						}
-
-						helpers.erase(iter);
-					}
-					++finished_scans;
-					view.PostMessage(WM_SCAN_FINISHED, (WPARAM)finished_scans, (LPARAM)total_scans);
-				};
-
-
-			for (auto iter{ files.begin() }; iter != std::prev(files.end()); ++iter)
-			{
-				if (view.IsStoppingScan())
-					break;
-				helpers.push_back(std::make_unique<CompareHelper>(view.m_SetsDlg, iter, files.end()));
-				if (auto pTh = hive.Add(helpers.back()->Start()))
-					finish_thread(pTh);
-			}
-
-			while (auto pTh = hive.Wait())
-				finish_thread(pTh);
+			if (bWait2Finish)
+				if (*m_pWaitTh != INVALID_HANDLE_VALUE)
+					::WaitForSingleObject(*m_pWaitTh, INFINITE);
 		}
-		else ::AfxMessageBox(_T("There nothing to scan!"), MB_OK | MB_ICONERROR);
+	}
 
-		view.ScanThreadFinished();
+	BOOL Models::IsScanning() const
+	{
+		CSingleLock _o{ &m_CS, TRUE };
+		return m_pWaitTh != nullptr;
+	}
 
+	BOOL Models::IsStoppingScan() const
+	{
+		CSingleLock _o{ &m_CS, TRUE };
+		return m_bStopping;
+	}
+
+	UINT Models::WaitProc(LPVOID pData)
+	{
+		auto& mods{ *reinterpret_cast<Models*>(pData) };
+
+		////////////////////////////////////////////////////////////////////
+		size_t const total_scans{ mods.m_Files.size() - 1 };
+		mods.SetInfoTotalScanCount(total_scans);
+
+		std::vector<CWorkerThread*> ths;
+
+		auto wait = [&ths]
+			{
+				std::vector<CWorkerThread*> working_threads;
+				for (auto p : ths)
+					if (p->IsWorking())
+						working_threads.push_back(p);
+
+				std::vector<HANDLE> hs;
+				for (auto p : working_threads)
+					hs.push_back(p->GetWorkingSyncObj());
+
+				if (hs.empty())
+					return (CWorkerThread*)nullptr;
+
+				auto const res{ ::WaitForMultipleObjects((DWORD)hs.size(),hs.data(),FALSE, INFINITE) };
+				if (res >= WAIT_OBJECT_0 && res < WAIT_OBJECT_0 + hs.size())
+					return working_threads[res - WAIT_OBJECT_0];
+
+				assert(false);
+				return (CWorkerThread*)nullptr;
+			};
+
+		auto get_thread = [&]
+			{
+				CWorkerThread* ret;
+#ifdef DEBUG_SINGLE_THREAD
+				int maxThs = 1;
+#else
+				int maxThs = std::thread::hardware_concurrency();
+#endif // DEBUG_SINGLE_THREAD
+
+				if (ths.size() >= maxThs)
+				{
+					ret = wait();
+					mods.UpdateBest(ret->GetBest());
+				}
+				else
+				{
+					ret = static_cast<CWorkerThread*> (::AfxBeginThread(RUNTIME_CLASS(CWorkerThread)));
+					ret->Init(*mods.m_pSets, mods.m_Files.end());
+					ths.push_back(ret);
+				}
+				return ret;
+			};
+
+
+		for (auto iter{ mods.m_Files.begin() }; iter != std::prev(mods.m_Files.end()) && !mods.IsStoppingScan(); ++iter)
+			get_thread()->Start(iter);
+
+		while (auto pTh{ wait() })
+			mods.UpdateBest(pTh->GetBest());
+
+		std::vector<HANDLE> hs;
+		for (auto p : ths)
+			hs.push_back(*p);
+		for (auto p : ths)
+			p->PostThreadMessage(WM_QUIT, 0, 0);
+		::WaitForMultipleObjects((DWORD)hs.size(), hs.data(), TRUE, INFINITE);
+
+		mods.OnWaitThreadFinished();
 		return 0;
 	}
 
+	void Models::OnWaitThreadFinished()
+	{
+		CSingleLock _o{ &m_CS, TRUE };
+		m_pWaitTh = nullptr;
+		m_bStopping = FALSE;
+	}
+
+	void Models::UpdateBest(BestModels&& mods)
+	{
+		CSingleLock _o{ &m_CS, TRUE };
+
+		m_Info.isStopping = m_bStopping;
+		++m_Info.finished;
+
+		bool bUpdate{ false };
+
+		for (auto& m : mods)
+			bUpdate |= m_Comp.Test(m);
+
+		UINT const msg{ (UINT)(bUpdate ? CChildView::Message::WM_BETTER_RESULT : CChildView::Message::WM_SCAN_FINISHED) };
+		static_cast<CMainFrame*>(theApp.GetMainWnd())->GetChildView().PostMessage(msg);
+	}
+
+	void Models::SetInfoTotalScanCount(size_t total)
+	{
+		CSingleLock _o{ &m_CS, TRUE };
+		m_Info.total = total;
+	}
+
+	BestModels Models::GetBest()const
+	{
+		return m_Comp.GetBest();
+	}
+
+	Models::INFO Models::GetInfo() const
+	{
+		return m_Info;
+	}
 }

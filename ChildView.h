@@ -10,6 +10,12 @@
 
 class CChildView : public CWnd
 {
+public:
+	enum class Message :UINT
+	{
+		WM_SCAN_FINISHED = WM_USER + 0x0001,
+		WM_BETTER_RESULT,
+	};
 	// Construction
 public:
 	CChildView();
@@ -39,6 +45,8 @@ protected:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnListItemChanged(NMHDR*, LRESULT*);
 	afx_msg void OnDestroy();
+	afx_msg LRESULT OnScanFinished(WPARAM,LPARAM);
+	afx_msg LRESULT OnBetterResult(WPARAM,LPARAM);
 	DECLARE_MESSAGE_MAP()
 
 private:
@@ -46,6 +54,7 @@ private:
 	void AddListItem(TRADES_STATISTIC const&);
 	void PrepareList(BOOL const bList4Scan);
 	void UpdateScanningList();
+	void UpdateListScanResults(size_t const index);
 
 	CSortListCtrl m_List;
 	CRect m_Canvas;

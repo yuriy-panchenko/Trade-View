@@ -23,6 +23,8 @@ public:
 	inline double Net()const { return (m_Stat.profit - m_Stat.loss) / 100.; }
 	inline TRADES_STATISTIC const& GetStats()const { return m_Stat; }
 	inline std::vector<TradeSummary> const& GetTrades()const { return m_Trades; }
+	inline int GetID()const { return m_ID; }
+	void SetID(int id) { m_ID = id; }
 
 private:
 	void ParseText(std::istream&);
@@ -33,6 +35,7 @@ private:
 	static bool  CalculateStdError(std::vector<double> const& data, double  a_coef, double  b_coef, double& std_err);
 
 private:
+	int m_ID;
 	TRADES_STATISTIC m_Stat;
 	std::vector<TradeSummary> m_Trades;
 };

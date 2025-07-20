@@ -1,51 +1,43 @@
 #pragma once
+#include "Trades.h"
+#include "ScanDefines.h"
+class CWorkerThread;
+class CScanSettingsDlg;
 
 namespace Scan
 {
-	class CompareHelper
-	{
-		std::vector<TradeFile*>::const_iterator itFrom, itTo;
-
-	public:
-		CompareHelper(CScanSettingsDlg const& dlg, std::vector<TradeFile*>::const_iterator i, std::vector<TradeFile*>::const_iterator to)
-			: comp{ dlg.m_Scan_Count, dlg.m_Scan4_Net, dlg.m_Scan4_Factor, dlg.m_Scan4_Custom }
-			, itFrom{ i }
-			, itTo{ to }
-		{
-		}
-		CWinThread* Start()
-		{
-			return pTh = ::AfxBeginThread(&Proc, this);
-		}
-
-		CWinThread* pTh;
-		Scan::CompareObj comp;
-
-	private:
-		static UINT Proc(LPVOID pData) { return static_cast<CompareHelper*>(pData)->DoWork(); }
-		UINT DoWork()
-		{
-			for (auto iter{ std::next(itFrom) }; iter != itTo; ++iter)
-			{
-				Scan::ModelBunch bunch;
-				bunch.Add(*iter);
-				bunch.Add(*itFrom);
-				bunch.Calculate();
-
-				comp.Test(std::move(bunch));
-			}
-
-			return 0;
-		}
-	};
-
 	class Models
 	{
 	public:
+		struct INFO
+		{
+			BOOL isStopping;
+			size_t finished, total;
+		};
+
+	public:
+		Models();
+		void Start(std::vector<TradeFile> const&, CScanSettingsDlg const&);
+		void Stop(BOOL bWait2Finish);
+
 		BOOL IsScanning()const;
+		BOOL IsStoppingScan()const;
+		BestModels GetBest()const;
+		INFO GetInfo()const;
 
 	private:
-		//BOOL m_bStopScanningThread;
-		//size_t m_scanFinished, m_scanTotal;
+		static UINT WaitProc(LPVOID);
+		void OnWaitThreadFinished();
+		void UpdateBest(BestModels&&);
+		void SetInfoTotalScanCount(size_t total);
+
+	private:
+		CScanSettingsDlg const* m_pSets;
+		std::vector<TradeFile const*> m_Files;
+		CWinThread* m_pWaitTh;
+		mutable CCriticalSection m_CS;
+		BOOL m_bStopping;
+		Scan::CompareObj m_Comp;
+		INFO m_Info;
 	};
 }

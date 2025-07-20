@@ -133,14 +133,30 @@ namespace Scan
 	}
 
 	CompareObj::CompareObj(int maxModels, BOOL bNet, BOOL bFactor, BOOL bCustom)
-		:maxModelCount{ maxModels }
 	{
+		Init(maxModels, bNet, bFactor, bCustom);
+	}
+
+	void CompareObj::operator+=(BestModels&& bm)
+	{
+		for (auto& m : bm)
+			Test(m);
+	}
+
+	void CompareObj::Init(int maxModels, BOOL bNet, BOOL bFactor, BOOL bCustom)
+	{
+		maxModelCount = maxModels;
 		if (bNet)
 			bestNet = std::make_unique<BestModels>();
 		if (bFactor)
 			bestFactor = std::make_unique<BestModels>();
 		if (bCustom)
 			bestCustom = std::make_unique<BestModels>();
+	}
+
+	void CompareObj::Reset()
+	{
+		Init(maxModelCount, (bool)bestNet, (bool)bestFactor, (bool)bestCustom);
 	}
 
 	bool CompareObj::Test(const ModelBunch& mb)
@@ -211,6 +227,31 @@ namespace Scan
 			bUpdated |= check(*bestFactor, check_factor);
 		if (bestCustom)
 			bUpdated |= check(*bestCustom, check_custom);
+
+#ifdef DEBUG
+
+		auto compare_best_single = [](BestModels const& bm)
+			{
+				for (auto it_a = bm.begin(); it_a != bm.end(); it_a++)
+					for (auto it_b = std::next(it_a); it_b != bm.end(); it_b++)
+						assert(*it_a != *it_b);
+			};
+		auto compare_best_double = [](BestModels const&, BestModels const&)
+			{
+			};
+		if (bestNet)
+			compare_best_single(*bestNet);
+		if (bestFactor)
+			compare_best_single(*bestFactor);
+		if (bestCustom)
+			compare_best_single(*bestCustom);
+		if (bestNet && bestFactor)
+			compare_best_double(*bestNet, *bestFactor);
+		if (bestNet && bestCustom)
+			compare_best_double(*bestNet, *bestCustom);
+		if (bestFactor && bestCustom)
+			compare_best_double(*bestFactor, *bestNet);
+#endif // DEBUG
 
 		return bUpdated;
 	}

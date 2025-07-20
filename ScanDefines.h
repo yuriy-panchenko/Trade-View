@@ -77,7 +77,13 @@ namespace Scan
 		std::unique_ptr<BestModels> bestNet, bestFactor, bestCustom;
 
 	public:
+		CompareObj() = default;
 		CompareObj(int maxModels, BOOL bNet, BOOL bFactor, BOOL bCustom);
+
+		void operator+=(BestModels&&);
+
+		void Init(int maxModels, BOOL bNet, BOOL bFactor, BOOL bCustom);
+		void Reset();
 
 		bool Test(const ModelBunch&);
 		BestModels GetBest()const;

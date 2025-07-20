@@ -18,6 +18,7 @@ public:
 
 // Operations
 public:
+	CChildView& GetChildView() { return m_wndView; }
 
 // Overrides
 public:

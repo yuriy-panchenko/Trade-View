@@ -11,9 +11,6 @@
 #define new DEBUG_NEW
 #endif
 
-#define WM_SCAN_FINISHED		(WM_USER+0x0001)
-#define WM_BETTER_RESULT		(WM_USER+0x0002)
-
 constexpr COLORREF color[] = { RGB(0,255,0), RGB(255,0,0), RGB(0,0,255), };
 
 // CChildView
@@ -43,7 +40,8 @@ BEGIN_MESSAGE_MAP(CChildView, CWnd)
 	ON_WM_SIZE()
 	ON_NOTIFY(LVN_ITEMCHANGED, ID_LIST_CTRL, OnListItemChanged)
 	ON_WM_DESTROY()
-	//ON_MESSAGE(WM_SCAN_FINISHED, OnScanFinished)
+	ON_MESSAGE((UINT)Message::WM_SCAN_FINISHED, OnScanFinished)
+	ON_MESSAGE((UINT)Message::WM_BETTER_RESULT, OnBetterResult)
 	//ON_MESSAGE(WM_BETTER_RESULT, OnBetterResult)
 END_MESSAGE_MAP()
 
@@ -55,6 +53,7 @@ BOOL CChildView::PreCreateWindow(CREATESTRUCT& cs)
 
 	cs.dwExStyle |= WS_EX_CLIENTEDGE;
 	cs.style &= ~WS_BORDER;
+	cs.style |= WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
 	cs.lpszClass = AfxRegisterWndClass(CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
 		::LoadCursor(nullptr, IDC_ARROW), reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1), nullptr);
 
@@ -73,24 +72,38 @@ void CChildView::OnPaint()
 
 	if (m_isScanningMode)
 	{
+		auto const info{ m_Scan.GetInfo() };
 		if (m_Scan.IsScanning())
 		{
 			int const iSave{ dc.SaveDC() };
 			CString str;
-			//str.Format(_T("%s\n\n%I64u / %I64u\n\n%.2g%%"),
-			//	m_bStopScanningThread ? _T("...STOPPING...") : _T("...scanning..."),
-			//	m_scanFinished,
-			//	m_scanTotal,
-			//	m_scanTotal ? m_scanFinished * 100. / m_scanTotal : .0);
+			str.Format(_T("%s ... %I64u / %I64u, %.1f%%"),
+				info.isStopping ? _T("STOPPING") : _T("Scanning"),
+				info.finished,
+				info.total,
+				info.total ? info.finished * 100. / info.total : .0);
 			dc.SetTextColor(RGB(200, 200, 0));
 			dc.SetBkMode(TRANSPARENT);
 			dc.SelectObject(&m_fontScanning);
-			dc.DrawText(str, rect, DT_CENTER | DT_VCENTER);
+			dc.DrawText(str, rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 			dc.RestoreDC(iSave);
 		}
 		else
 		{
+			int i{ 0 };
+			constexpr int color_num{ sizeof(color) / sizeof(COLORREF) };
+			auto iSel{ m_List.GetSelectionMark() };
 
+			if (iSel > -1)
+			{
+				Draw::CummulativeChart draw;
+				auto data = m_List.GetItemData(iSel);
+
+				for (auto p : m_Best[data].GetSubModels())
+					draw.Add(*p, color[i++ % color_num]);
+
+				draw.Draw(dc, rect);
+			}
 		}
 	}
 	else
@@ -151,13 +164,14 @@ void CChildView::LoadFolder(fs::path const& path)
 
 	for (auto const& entry : fs::directory_iterator(path))
 		if (entry.is_regular_file())
-			if (entry.path().extension() == L".csv")
-				ths.push_back(std::async(proc, entry));
+			if (entry.path().extension() == L".csv")//
+				ths.push_back(std::async(std::launch::async, proc, entry));
 
 	for (auto& f : ths)
 	{
 		f.wait();
 		m_Files.push_back(f.get());
+		m_Files.back().SetID((int)m_Files.size());
 		AddListItem(m_Files.back().GetStats());
 	}
 
@@ -168,37 +182,26 @@ void CChildView::LoadFolder(fs::path const& path)
 	EndWaitCursor();
 }
 
-void CChildView::FoundBetterResults(Scan::BestModels const& best)
-{
-	{
-		CSingleLock _o{ &m_Mtx, TRUE };
-		m_Best = best;
-	}
-	UpdateScanningList();
-}
 
 void CChildView::OnScanTrades()
 {
 	if (m_Scan.IsScanning())
 	{
-		BeginWaitCursor();
-		m_Scan.Stop();
-		EndWaitCursor();
+		m_Scan.Stop(FALSE);
+		Invalidate();
 	}
 	else if (m_SetsDlg.DoModal() == IDOK)
 	{
 		PrepareList(TRUE);
-		m_Scan.Start();
-		m_scanFinished = m_scanTotal = 0ull;
-		m_pScanTh = ::AfxBeginThread(ScanProc, this);
+		m_Scan.Start(m_Files, m_SetsDlg);
 		Invalidate();
 	}
 }
 
 void CChildView::OnUpdateScanTrades(CCmdUI* pCmdUI)
 {
-	pCmdUI->Enable(m_Files.size() > 1 && !IsStoppingScan());
-	pCmdUI->SetCheck(m_pScanTh != nullptr);
+	pCmdUI->Enable(m_Files.size() > 1 && !m_Scan.IsStoppingScan());
+	pCmdUI->SetCheck(m_Scan.IsScanning());
 }
 
 int CChildView::OnCreate(LPCREATESTRUCT lpCreateStruct)
@@ -212,7 +215,7 @@ int CChildView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	if (!m_List.Create(WS_VISIBLE | WS_CHILD | WS_BORDER | LVS_REPORT | LVS_SHOWSELALWAYS, rect, this, ID_LIST_CTRL))
 		return -1;
-	m_List.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+	m_List.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
 	PrepareList(FALSE);
 
 	return 0;
@@ -311,10 +314,11 @@ void CChildView::PrepareList(BOOL const bList4Scan)
 	int col{ 0 };
 	if (m_isScanningMode = bList4Scan)
 	{
-		m_List.InsertColumn(col++, _T("#"));
-		m_List.InsertColumn(col++, _T("NET"), LVCFMT_RIGHT);
-		m_List.InsertColumn(col++, _T("Factor"), LVCFMT_RIGHT);
-		m_List.InsertColumn(col++, _T("Custom"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("#"), LVCFMT_LEFT, 20);
+		m_List.InsertColumn(col++, _T("NET"), LVCFMT_RIGHT, 50);
+		m_List.InsertColumn(col++, _T("Factor"), LVCFMT_RIGHT, 50);
+		m_List.InsertColumn(col++, _T("Custom"), LVCFMT_RIGHT, 50);
+		m_List.InsertColumn(col++, _T("Pair"), LVCFMT_CENTER, 50);
 	}
 	else
 	{
@@ -337,34 +341,39 @@ void CChildView::UpdateListScanResults(size_t const index)
 	LVITEM item{};
 	CString str;
 
-	item.mask = LVIF_TEXT;
+	item.mask = LVIF_TEXT | LVIF_PARAM;
 	item.iItem = (int)index;
-	/*for (auto& sub : model.GetSubModels())
-	{
-		if (!str.IsEmpty())
-			str += _T(" + ");
-		str+=sub->GetStats().
-	}*/
+	item.lParam = index;
 	str.Format(_T("%I64u"), index + 1);
 	item.pszText = (LPTSTR)(LPCTSTR)str;
 	m_List.SetItem(&item);
 
 	item.mask = LVIF_TEXT;
 	++item.iSubItem;
-	str.Format(_T("%.2g"), model.GetNet());
+	str.Format(_T("%.0f"), model.GetNet());
+	item.pszText = (LPTSTR)(LPCTSTR)str;
 	m_List.SetItem(&item);
 
 	++item.iSubItem;
-	str.Format(_T("%.2g"), model.GetFactor());
+	str.Format(_T("%.2f"), model.GetFactor());
+	item.pszText = (LPTSTR)(LPCTSTR)str;
 	m_List.SetItem(&item);
 
 	++item.iSubItem;
-	str.Format(_T("%.2g"), model.GetCustom());
+	str.Format(_T("%.2f"), model.GetCustom());
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	++item.iSubItem;
+	str.Format(_T("%d : %d"), model.GetSubModels().front()->GetID(), model.GetSubModels().back()->GetID());
+	item.pszText = (LPTSTR)(LPCTSTR)str;
 	m_List.SetItem(&item);
 }
 
 void CChildView::UpdateScanningList()
 {
+	m_List.SetRedraw(FALSE);
+
 	while (m_List.GetItemCount() < m_Best.size())
 		m_List.InsertItem(0, _T(""));
 
@@ -373,50 +382,27 @@ void CChildView::UpdateScanningList()
 
 	for (int i = 0; i < m_List.GetHeaderCtrl()->GetItemCount(); i++)
 		m_List.SetColumnWidth(i, LVSCW_AUTOSIZE);
+
+	m_List.SetRedraw();
 }
 
 void CChildView::OnDestroy()
 {
-	StopScanningThread();
 	CWnd::OnDestroy();
+	if (m_Scan.IsScanning())
+		m_Scan.Stop(TRUE);
 }
 
-LRESULT CChildView::OnScanFinished(WPARAM wParam, LPARAM lParam)
+LRESULT CChildView::OnScanFinished(WPARAM, LPARAM)
 {
-	m_scanFinished = (size_t)wParam;
-	m_scanTotal = (size_t)lParam;
 	Invalidate();
 	return 0;
 }
 
-LRESULT CChildView::OnBetterResult(WPARAM wParam, LPARAM)
+LRESULT CChildView::OnBetterResult(WPARAM, LPARAM)
 {
-	auto pBest{reinterpret_cast<Scan::BestModels*>(wParam)};
-	m_Best = *pBest;
+	m_Best = m_Scan.GetBest();
+	Invalidate();
 	UpdateScanningList();
-	
-	return LRESULT(0);
-}
-
-BOOL CChildView::IsStoppingScan()const
-{
-	CSingleLock _o{ &m_Mtx, TRUE };
-	return m_bStopScanningThread;
-}
-
-void CChildView::StopScanningThread()
-{
-	if (m_pScanTh)
-	{
-		EnableWindow(FALSE);
-		{
-			CSingleLock _o{ &m_Mtx, TRUE };
-			m_bStopScanningThread = TRUE;
-		}
-
-		::WaitForSingleObject(*m_pScanTh, INFINITE);
-
-		m_pScanTh = NULL;
-		EnableWindow();
-	}
+	return 0;
 }

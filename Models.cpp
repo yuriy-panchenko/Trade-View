@@ -20,7 +20,7 @@ namespace Scan
 	{
 	}
 
-	void Models::Start(std::vector<TradeFile> const& files, CScanSettingsDlg const& dlg)
+	BOOL Models::Start(std::vector<TradeFile> const& files, CScanSettingsDlg const& dlg)
 	{
 		m_pSets = &dlg;
 		m_Files.clear();
@@ -51,7 +51,9 @@ namespace Scan
 
 		if (m_Files.size() < 2)
 			::AfxMessageBox(_T("There nothing to scan!"), MB_OK | MB_ICONERROR);
-		else m_pWaitTh = ::AfxBeginThread(WaitProc, this);
+		else m_pWaitTh = ::AfxBeginThread(DoWork, this);
+
+		return m_Files.size() > 1;
 	}
 
 	void Models::Stop(BOOL bWait2Finish)
@@ -80,7 +82,7 @@ namespace Scan
 		return m_bStopping;
 	}
 
-	UINT Models::WaitProc(LPVOID pData)
+	UINT Models::DoWork(LPVOID pData)
 	{
 		auto& mods{ *reinterpret_cast<Models*>(pData) };
 
@@ -155,9 +157,13 @@ namespace Scan
 
 	void Models::OnWaitThreadFinished()
 	{
-		CSingleLock _o{ &m_CS, TRUE };
-		m_pWaitTh = nullptr;
-		m_bStopping = FALSE;
+		{
+			CSingleLock _o{ &m_CS, TRUE };
+			m_pWaitTh = nullptr;
+			m_bStopping = FALSE;
+		}
+
+		static_cast<CMainFrame*>(theApp.GetMainWnd())->GetChildView().PostMessage((UINT)CChildView::Message::WM_SCAN_FINISHED, 1);
 	}
 
 	void Models::UpdateBest(BestModels&& mods)

@@ -56,6 +56,7 @@ namespace Scan
 		std::vector<TradeFile const*> subModels;
 		Cummulative combined;
 		double Net, Factor, Custom;
+		size_t inTime;
 
 	public:
 		void Add(TradeFile const*);

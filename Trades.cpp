@@ -2,7 +2,8 @@
 #include "Trades.h"
 
 TradeFile::TradeFile(fs::path const& fname)
-	:m_Stat{}
+	:m_Filepath{fname}
+	,m_Stat{}
 {
 	std::ifstream file{ fname };
 	std::string line;
@@ -112,6 +113,8 @@ void TradeFile::UpdateStatistics()
 {
 	long long val;
 	ZeroMemory(&m_Stat, sizeof TRADES_STATISTIC);
+	if (m_Trades.empty())
+		return;
 
 	for (auto const& t : m_Trades)
 	{
@@ -126,7 +129,10 @@ void TradeFile::UpdateStatistics()
 			m_Stat.loss -= val;
 			++m_Stat.iLost;
 		}
+		m_Stat.timeIn += t.close_time - t.open_time;
 	}
+	
+	m_Stat.timeTotal = m_Trades.back().close_time - m_Trades.front().open_time;
 
 	double k, b, err;
 	auto const cumm{ GetCumulative() };

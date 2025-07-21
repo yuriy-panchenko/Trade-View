@@ -47,6 +47,12 @@ protected:
 	afx_msg void OnDestroy();
 	afx_msg LRESULT OnScanFinished(WPARAM,LPARAM);
 	afx_msg LRESULT OnBetterResult(WPARAM,LPARAM);
+	afx_msg void OnRemoveSelected();
+	afx_msg void OnUpdateRemoveSelected(CCmdUI* pCmdUI);
+	afx_msg void OnFileSave();
+	afx_msg void OnUpdateFileSave(CCmdUI* pCmdUI);
+	afx_msg void OnSwapTables();
+	afx_msg void OnUpdateSwapTables(CCmdUI* pCmdUI);
 	DECLARE_MESSAGE_MAP()
 
 private:
@@ -55,6 +61,10 @@ private:
 	void PrepareList(BOOL const bList4Scan);
 	void UpdateScanningList();
 	void UpdateListScanResults(size_t const index);
+	void AutosizeColumns();
+	void UpdateLayout();
+	void LoadFiles();
+	void LoadBest();
 
 	CSortListCtrl m_List;
 	CRect m_Canvas;
@@ -64,5 +74,6 @@ private:
 	Scan::Models m_Scan;
 	CScanSettingsDlg m_SetsDlg;
 	CFont m_fontScanning;
+	int m_iListWidth;
 };
 

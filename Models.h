@@ -17,7 +17,7 @@ namespace Scan
 
 	public:
 		Models();
-		void Start(std::vector<TradeFile> const&, CScanSettingsDlg const&);
+		BOOL Start(std::vector<TradeFile> const&, CScanSettingsDlg const&);
 		void Stop(BOOL bWait2Finish);
 
 		BOOL IsScanning()const;
@@ -26,7 +26,7 @@ namespace Scan
 		INFO GetInfo()const;
 
 	private:
-		static UINT WaitProc(LPVOID);
+		static UINT DoWork(LPVOID);
 		void OnWaitThreadFinished();
 		void UpdateBest(BestModels&&);
 		void SetInfoTotalScanCount(size_t total);

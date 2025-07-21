@@ -1,7 +1,7 @@
 #pragma once
 struct TRADES_STATISTIC
 {
-	long long profit, loss, iWon, iLost;
+	long long profit, loss, iWon, iLost, timeIn, timeTotal;
 	double custom;
 };
 
@@ -35,6 +35,7 @@ private:
 	static bool  CalculateStdError(std::vector<double> const& data, double  a_coef, double  b_coef, double& std_err);
 
 private:
+	fs::path m_Filepath;
 	int m_ID;
 	TRADES_STATISTIC m_Stat;
 	std::vector<TradeSummary> m_Trades;

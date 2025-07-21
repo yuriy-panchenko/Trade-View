@@ -16,6 +16,7 @@ constexpr COLORREF color[] = { RGB(0,255,0), RGB(255,0,0), RGB(0,0,255), };
 // CChildView
 CChildView::CChildView()
 	:m_isScanningMode{ FALSE }
+	, m_iListWidth{ 400 }
 {
 	LOGFONT lf{};
 
@@ -43,6 +44,12 @@ BEGIN_MESSAGE_MAP(CChildView, CWnd)
 	ON_MESSAGE((UINT)Message::WM_SCAN_FINISHED, OnScanFinished)
 	ON_MESSAGE((UINT)Message::WM_BETTER_RESULT, OnBetterResult)
 	//ON_MESSAGE(WM_BETTER_RESULT, OnBetterResult)
+	ON_COMMAND(ID_REMOVE_SELECTED, &CChildView::OnRemoveSelected)
+	ON_UPDATE_COMMAND_UI(ID_REMOVE_SELECTED, &CChildView::OnUpdateRemoveSelected)
+	ON_COMMAND(ID_FILE_SAVE, &CChildView::OnFileSave)
+	ON_UPDATE_COMMAND_UI(ID_FILE_SAVE, &CChildView::OnUpdateFileSave)
+	ON_COMMAND(ID_SWAP_TABLES, &CChildView::OnSwapTables)
+	ON_UPDATE_COMMAND_UI(ID_SWAP_TABLES, &CChildView::OnUpdateSwapTables)
 END_MESSAGE_MAP()
 
 // CChildView message handlers
@@ -131,7 +138,25 @@ void CChildView::OnAddFolder()
 
 	auto pidl = ::SHBrowseForFolder(&info);
 	if (pidl && ::SHGetPathFromIDList(pidl, path))
+	{
+		BeginWaitCursor();
 		LoadFolder(path);
+		LoadFiles();
+		Invalidate();
+		EndWaitCursor();
+
+	}
+}
+
+void CChildView::LoadFiles()
+{
+	m_List.SetRedraw(FALSE);
+
+	for (auto& file : m_Files)
+		AddListItem(file.GetStats());
+
+	AutosizeColumns();
+	m_List.SetRedraw();
 }
 
 void CChildView::OnUpdateAddFolder(CCmdUI* pCmdUI)
@@ -141,47 +166,85 @@ void CChildView::OnUpdateAddFolder(CCmdUI* pCmdUI)
 
 void CChildView::LoadFolder(fs::path const& path)
 {
-	BeginWaitCursor();
-	m_List.SetRedraw(FALSE);
 
 	auto proc = [](fs::path entry)->TradeFile { return { entry }; };
 
-	/*	std::ifstream file{ fname };
-	std::string line;
+	auto load_files = [&]
+		{
+			std::vector<std::future<TradeFile>> ths;
 
-	if (file.is_open())
-		ParseText(file);
+			for (auto const& entry : fs::directory_iterator(path))
+				if (entry.is_regular_file())
+					if (entry.path().extension() == L".csv")//
+						ths.push_back(std::async(std::launch::async, proc, entry));
+			return ths;
+		};
 
-	//std::ostringstream buffer;
-	//buffer << file.rdbuf();  // read the whole file
-	//file.close();
-
-	//std::istringstream iss{ buffer.str() };
-
-}*/
-
-	std::vector<std::future<TradeFile>> ths;
-
-	for (auto const& entry : fs::directory_iterator(path))
-		if (entry.is_regular_file())
-			if (entry.path().extension() == L".csv")//
-				ths.push_back(std::async(std::launch::async, proc, entry));
-
-	for (auto& f : ths)
+	for (auto& f : load_files())
 	{
 		f.wait();
 		m_Files.push_back(f.get());
 		m_Files.back().SetID((int)m_Files.size());
-		AddListItem(m_Files.back().GetStats());
+	}
+}
+
+void ResizeListCtrlToFitColumns(CListCtrl* pListCtrl)
+{
+	if (!pListCtrl || !::IsWindow(pListCtrl->GetSafeHwnd()))
+		return;
+
+	CHeaderCtrl* pHeader = pListCtrl->GetHeaderCtrl();
+	if (!pHeader)
+		return;
+
+	int totalColumnWidth = 0;
+	int columnCount = pHeader->GetItemCount();
+
+	for (int i = 0; i < columnCount; ++i)
+		totalColumnWidth += pListCtrl->GetColumnWidth(i);
+
+	// Add vertical scroll bar width if it's visible
+	SCROLLINFO si = { sizeof(si), SIF_RANGE | SIF_PAGE };
+	if (::GetScrollInfo(pListCtrl->GetSafeHwnd(), SB_VERT, &si) &&
+		(si.nMax - si.nMin + 1 > (int)si.nPage))
+	{
+		totalColumnWidth += ::GetSystemMetrics(SM_CXVSCROLL);
 	}
 
+	// Add a little extra padding to avoid rounding issues
+	totalColumnWidth += 4;
+
+	// Get current position and height of list control
+	CRect rect;
+	pListCtrl->GetWindowRect(&rect);
+	pListCtrl->GetParent()->ScreenToClient(&rect);
+
+	// Resize control
+	pListCtrl->SetWindowPos(nullptr, rect.left, rect.top, totalColumnWidth, rect.Height(), SWP_NOZORDER);
+}
+
+
+void CChildView::AutosizeColumns()
+{
 	for (int i = 0; i < m_List.GetHeaderCtrl()->GetItemCount(); i++)
 		m_List.SetColumnWidth(i, LVSCW_AUTOSIZE);
 
-	m_List.SetRedraw();
-	EndWaitCursor();
+	m_iListWidth = 0;
+	for (int i = 0; i < m_List.GetHeaderCtrl()->GetItemCount(); i++)
+		m_iListWidth += m_List.GetColumnWidth(i);
+
+	m_iListWidth = max(m_iListWidth, 50);
+	m_iListWidth += ::GetSystemMetrics(SM_CXVSCROLL) + 4;
+
+	UpdateLayout();
 }
 
+void CChildView::UpdateLayout()
+{
+	GetClientRect(m_Canvas);
+	m_Canvas.left = min(m_Canvas.Width() / 3, m_iListWidth);
+	m_List.MoveWindow(0, 0, m_Canvas.left, m_Canvas.Height());
+}
 
 void CChildView::OnScanTrades()
 {
@@ -193,7 +256,11 @@ void CChildView::OnScanTrades()
 	else if (m_SetsDlg.DoModal() == IDOK)
 	{
 		PrepareList(TRUE);
-		m_Scan.Start(m_Files, m_SetsDlg);
+		if (!m_Scan.Start(m_Files, m_SetsDlg))
+		{
+			PrepareList(FALSE);
+			LoadFiles();
+		}
 		Invalidate();
 	}
 }
@@ -224,11 +291,7 @@ int CChildView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 void CChildView::OnSize(UINT nType, int cx, int cy)
 {
 	CWnd::OnSize(nType, cx, cy);
-
-	m_Canvas = { 0,0,cx,cy };
-	m_Canvas.left = min(cx / 3, 400);
-
-	m_List.MoveWindow(0, 0, m_Canvas.left, cy, FALSE);
+	UpdateLayout();
 }
 
 void CChildView::OnListItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
@@ -303,6 +366,11 @@ void CChildView::AddListItem(TRADES_STATISTIC const& stat)
 	str.Format(_T("%.4g"), stat.custom);
 	item.pszText = (LPTSTR)(LPCTSTR)str;
 	m_List.SetItem(&item);
+
+	++item.iSubItem;
+	str.Format(_T("%.2f"), stat.timeTotal ? stat.timeIn * 100. / stat.timeTotal : .0);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
 }
 
 void CChildView::PrepareList(BOOL const bList4Scan)
@@ -319,6 +387,7 @@ void CChildView::PrepareList(BOOL const bList4Scan)
 		m_List.InsertColumn(col++, _T("Factor"), LVCFMT_RIGHT, 50);
 		m_List.InsertColumn(col++, _T("Custom"), LVCFMT_RIGHT, 50);
 		m_List.InsertColumn(col++, _T("Pair"), LVCFMT_CENTER, 50);
+		m_List.InsertColumn(col++, _T("InTime, %"), LVCFMT_RIGHT);
 	}
 	else
 	{
@@ -331,6 +400,7 @@ void CChildView::PrepareList(BOOL const bList4Scan)
 		m_List.InsertColumn(col++, _T("Won"), LVCFMT_RIGHT);
 		m_List.InsertColumn(col++, _T("Lost"), LVCFMT_RIGHT);
 		m_List.InsertColumn(col++, _T("Custom"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("InTime, %"), LVCFMT_RIGHT);
 	}
 }
 
@@ -368,6 +438,11 @@ void CChildView::UpdateListScanResults(size_t const index)
 	str.Format(_T("%d : %d"), model.GetSubModels().front()->GetID(), model.GetSubModels().back()->GetID());
 	item.pszText = (LPTSTR)(LPCTSTR)str;
 	m_List.SetItem(&item);
+
+	++item.iSubItem;
+	//str.Format(_T("%.2f"), model.);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
 }
 
 void CChildView::UpdateScanningList()
@@ -380,9 +455,7 @@ void CChildView::UpdateScanningList()
 	for (size_t i = 0; i < m_Best.size(); i++)
 		UpdateListScanResults(i);
 
-	for (int i = 0; i < m_List.GetHeaderCtrl()->GetItemCount(); i++)
-		m_List.SetColumnWidth(i, LVSCW_AUTOSIZE);
-
+	AutosizeColumns();
 	m_List.SetRedraw();
 }
 
@@ -393,16 +466,73 @@ void CChildView::OnDestroy()
 		m_Scan.Stop(TRUE);
 }
 
-LRESULT CChildView::OnScanFinished(WPARAM, LPARAM)
+LRESULT CChildView::OnScanFinished(WPARAM wParam, LPARAM)
 {
+	if (wParam)	//	all scans
+	{
+
+	}
+	else	//	single scan
+	{
+	}
+
 	Invalidate();
+
 	return 0;
 }
 
 LRESULT CChildView::OnBetterResult(WPARAM, LPARAM)
 {
 	m_Best = m_Scan.GetBest();
-	Invalidate();
 	UpdateScanningList();
+	Invalidate();
 	return 0;
+}
+
+void CChildView::OnRemoveSelected()
+{
+	// TODO: Add your command handler code here
+}
+
+void CChildView::OnUpdateRemoveSelected(CCmdUI* pCmdUI)
+{
+	pCmdUI->Enable(m_List.GetSelectedCount());
+}
+
+void CChildView::OnFileSave()
+{
+	// TODO: Add your command handler code here
+}
+
+void CChildView::OnUpdateFileSave(CCmdUI* pCmdUI)
+{
+	auto const sel{ m_List.GetSelectedCount() };
+	pCmdUI->Enable(m_isScanningMode ? sel == 1 : sel);
+}
+
+void CChildView::OnSwapTables()
+{
+	PrepareList(!m_isScanningMode);
+	if (m_isScanningMode)
+		LoadBest();
+	else LoadFiles();
+}
+
+void CChildView::OnUpdateSwapTables(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_isScanningMode);
+	pCmdUI->Enable(!m_Files.empty() && !m_Best.empty());
+}
+
+void CChildView::LoadBest()
+{
+	m_List.SetRedraw(FALSE);
+	for (int i = 0; i < (int)m_Best.size(); i++)
+	{
+		m_List.InsertItem(i, _T(""));
+		UpdateListScanResults(i);
+	}
+	AutosizeColumns();
+	m_List.SetRedraw();
+	Invalidate();
 }

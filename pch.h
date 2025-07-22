@@ -15,6 +15,7 @@
 #include <future> // Add this include at the top of the file to use std::async
 #include <map>
 #include <algorithm>
+#include <set>
 #include "framework.h"
 
 namespace fs = std::filesystem;

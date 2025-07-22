@@ -36,6 +36,11 @@ namespace Scan
 		combined = tl;
 		combined /= subModels.size();
 
+		m_Inters = {};
+
+		for (auto pFile : subModels)
+			m_Inters += *pFile;
+
 		double profit{ .0 }, loss{ .0 };
 		int won{ 0 }, lost{ 0 };
 		auto& data{ combined.GetData() };

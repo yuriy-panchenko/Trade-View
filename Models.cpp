@@ -6,7 +6,7 @@
 #include "MainFrm.h"
 
 #ifdef DEBUG
-//#define DEBUG_SINGLE_THREAD
+#define DEBUG_SINGLE_THREAD
 #endif // DEBUG
 
 

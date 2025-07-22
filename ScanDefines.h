@@ -1,5 +1,6 @@
 #pragma once
 #include "Trades.h"
+#include "Intervals.h"
 
 namespace Scan
 {
@@ -57,6 +58,7 @@ namespace Scan
 		Cummulative combined;
 		double Net, Factor, Custom;
 		size_t inTime;
+		Intervals m_Inters;
 
 	public:
 		void Add(TradeFile const*);
@@ -68,6 +70,7 @@ namespace Scan
 		bool operator==(ModelBunch const&)const;
 		bool has(TradeFile const*)const;
 		inline std::vector<TradeFile const*> const& GetSubModels()const { return subModels; }
+		Intervals const& GetIntervals()const { return m_Inters; }
 	};
 
 	using BestModels = std::vector<Scan::ModelBunch>;

@@ -65,6 +65,7 @@ private:
 	void UpdateLayout();
 	void LoadFiles();
 	void LoadBest();
+	std::set<int> GetSelectedIndexes();
 
 	CSortListCtrl m_List;
 	CRect m_Canvas;

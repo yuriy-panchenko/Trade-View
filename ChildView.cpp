@@ -99,18 +99,20 @@ void CChildView::OnPaint()
 		{
 			int i{ 0 };
 			constexpr int color_num{ sizeof(color) / sizeof(COLORREF) };
-			auto iSel{ m_List.GetSelectionMark() };
 
-			if (iSel > -1)
+			auto pos{ m_List.GetFirstSelectedItemPosition() };
+
+			Draw::CummulativeChart draw;
+			while (pos)
 			{
-				Draw::CummulativeChart draw;
-				auto data = m_List.GetItemData(iSel);
+				int ind = m_List.GetNextSelectedItem(pos);
+				auto data = m_List.GetItemData(ind);
 
 				for (auto p : m_Best[data].GetSubModels())
 					draw.Add(*p, color[i++ % color_num]);
 
-				draw.Draw(dc, rect);
 			}
+			draw.Draw(dc, rect);
 		}
 	}
 	else
@@ -144,7 +146,6 @@ void CChildView::OnAddFolder()
 		LoadFiles();
 		Invalidate();
 		EndWaitCursor();
-
 	}
 }
 
@@ -267,7 +268,7 @@ void CChildView::OnScanTrades()
 
 void CChildView::OnUpdateScanTrades(CCmdUI* pCmdUI)
 {
-	pCmdUI->Enable(m_Files.size() > 1 && !m_Scan.IsStoppingScan());
+	pCmdUI->Enable(m_Files.size() > 1 && !m_Scan.IsStoppingScan() /*&& !m_isScanningMode*/);
 	pCmdUI->SetCheck(m_Scan.IsScanning());
 }
 
@@ -298,9 +299,12 @@ void CChildView::OnListItemChanged(NMHDR* pNMHDR, LRESULT* pResult)
 {
 	auto pNMLV{ reinterpret_cast<LPNMLISTVIEW>(pNMHDR) };
 
-	if ((pNMLV->uChanged & LVIF_STATE) &&
-		(pNMLV->uNewState & LVIS_SELECTED) != (pNMLV->uOldState & LVIS_SELECTED))
-		InvalidateRect(m_Canvas);
+	if (pNMLV->uChanged & LVIF_STATE)
+	{
+
+		if (pNMLV->uNewState & LVIS_SELECTED)// != pNMLV->uOldState & LVIS_SELECTED
+			InvalidateRect(m_Canvas);
+	}
 
 	*pResult = 0;
 }
@@ -387,7 +391,10 @@ void CChildView::PrepareList(BOOL const bList4Scan)
 		m_List.InsertColumn(col++, _T("Factor"), LVCFMT_RIGHT, 50);
 		m_List.InsertColumn(col++, _T("Custom"), LVCFMT_RIGHT, 50);
 		m_List.InsertColumn(col++, _T("Pair"), LVCFMT_CENTER, 50);
+		m_List.InsertColumn(col++, _T("Trades"), LVCFMT_RIGHT, 50);
 		m_List.InsertColumn(col++, _T("InTime, %"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("Con, %"), LVCFMT_RIGHT);
+		m_List.InsertColumn(col++, _T("De, %"), LVCFMT_RIGHT);
 	}
 	else
 	{
@@ -439,8 +446,26 @@ void CChildView::UpdateListScanResults(size_t const index)
 	item.pszText = (LPTSTR)(LPCTSTR)str;
 	m_List.SetItem(&item);
 
+	auto& inters{ model.GetIntervals() };
+	auto const in_time{ inters.GetInTime() }, con{ inters.GetConstructive() }, de{ inters.GetDestructive() };
+
 	++item.iSubItem;
-	//str.Format(_T("%.2f"), model.);
+	str.Format(_T("%I64u"), inters.GetTradeCount());
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+	
+	++item.iSubItem;
+	str.Format(_T("%.2f"), in_time * 100 / (double)inters.GetTotalTime());
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	++item.iSubItem;
+	str.Format(_T("%.2f"), con * 100 / (double)in_time);
+	item.pszText = (LPTSTR)(LPCTSTR)str;
+	m_List.SetItem(&item);
+
+	++item.iSubItem;
+	str.Format(_T("%.2f"), de * 100 / (double)in_time);
 	item.pszText = (LPTSTR)(LPCTSTR)str;
 	m_List.SetItem(&item);
 }
@@ -489,19 +514,114 @@ LRESULT CChildView::OnBetterResult(WPARAM, LPARAM)
 	return 0;
 }
 
+std::set<int> CChildView::GetSelectedIndexes()
+{
+	std::set<int> sels;
+
+	auto pos{ m_List.GetFirstSelectedItemPosition() };
+	while (pos)
+	{
+		auto index{ m_List.GetNextSelectedItem(pos) };
+		auto data{ (int)m_List.GetItemData(index) };
+		sels.insert(data);
+	}
+
+	return sels;
+}
+
 void CChildView::OnRemoveSelected()
 {
-	// TODO: Add your command handler code here
+	auto const sels{ GetSelectedIndexes() };
+	assert(!sels.empty());
+
+	if (m_isScanningMode)
+	{
+		decltype(m_Best) temp;
+		for (int i = 0; i < (int)m_Best.size(); i++)
+			if (!sels.contains(i))
+				temp.push_back(std::move(m_Best[i]));
+
+		std::swap(m_Best, temp);
+		PrepareList(m_isScanningMode);
+		LoadBest();
+		Invalidate();
+	}
+	/*else
+	{
+		decltype(m_Files) temp;
+		for (int i = 0; i < (int)m_Files.size(); i++)
+			if (!sels.contains(i))
+				temp.push_back(std::move(m_Files[i]));
+
+		std::swap(m_Files, temp);
+		PrepareList(m_isScanningMode);
+		LoadFiles();
+		Invalidate();
+	}*/
 }
 
 void CChildView::OnUpdateRemoveSelected(CCmdUI* pCmdUI)
 {
-	pCmdUI->Enable(m_List.GetSelectedCount());
+	pCmdUI->Enable(m_isScanningMode && m_List.GetSelectedCount());
 }
 
 void CChildView::OnFileSave()
 {
-	// TODO: Add your command handler code here
+
+	BROWSEINFO info = {};
+	info.ulFlags = BIF_USENEWUI;
+	WCHAR path[MAX_PATH + 1];
+
+	auto save_one_file = [&path](fs::path src)
+		{
+			fs::path dst{ path };
+			dst /= src.filename();
+
+			src.replace_extension(".set");
+			dst.replace_extension(".set");
+
+			try
+			{
+				fs::copy_file(src, dst);
+			}
+			catch (std::exception&) {}
+		};
+
+	auto save_files = [&path, save_one_file](fs::path src, char ex)
+		{
+			fs::path dst{ path };
+			dst /= src.filename();
+
+			dst.replace_extension();
+			dst += "_";
+			dst += ex;
+
+			src.replace_extension(".set");
+			dst += ".set";
+
+			try
+			{
+				fs::copy_file(src, dst);
+			}
+			catch (std::exception&) {}
+		};
+
+	auto pidl = ::SHBrowseForFolder(&info);
+	if (pidl && ::SHGetPathFromIDList(pidl, path))
+	{
+		auto const sels{ GetSelectedIndexes() };
+		assert(!sels.empty());
+
+		for (auto ind : sels)
+			if (m_isScanningMode)
+			{
+				auto& mods{ m_Best[ind].GetSubModels() };
+				for (size_t i = 0; i < mods.size(); i++)
+					save_files(mods[i]->GetFilepath(), 'a' + (char)i);
+			}
+			else
+				save_one_file(m_Files[ind].GetFilepath());
+	}
 }
 
 void CChildView::OnUpdateFileSave(CCmdUI* pCmdUI)
@@ -512,16 +632,19 @@ void CChildView::OnUpdateFileSave(CCmdUI* pCmdUI)
 
 void CChildView::OnSwapTables()
 {
+	BeginWaitCursor();
 	PrepareList(!m_isScanningMode);
 	if (m_isScanningMode)
 		LoadBest();
 	else LoadFiles();
+	Invalidate();
+	EndWaitCursor();
 }
 
 void CChildView::OnUpdateSwapTables(CCmdUI* pCmdUI)
 {
 	pCmdUI->SetCheck(m_isScanningMode);
-	pCmdUI->Enable(!m_Files.empty() && !m_Best.empty());
+	//pCmdUI->Enable(!m_Files.empty() && !m_Best.empty());
 }
 
 void CChildView::LoadBest()
@@ -534,5 +657,4 @@ void CChildView::LoadBest()
 	}
 	AutosizeColumns();
 	m_List.SetRedraw();
-	Invalidate();
 }

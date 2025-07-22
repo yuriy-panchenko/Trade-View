@@ -193,6 +193,7 @@
     <ClInclude Include="CWorketThread.h" />
     <ClInclude Include="DrawChart.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="Intervals.h" />
     <ClInclude Include="MainFrm.h" />
     <ClInclude Include="Models.h" />
     <ClInclude Include="pch.h" />
@@ -210,6 +211,7 @@
     <ClCompile Include="CScanSettingsDlg.cpp" />
     <ClCompile Include="CWorketThread.cpp" />
     <ClCompile Include="DrawChart.cpp" />
+    <ClCompile Include="Intervals.cpp" />
     <ClCompile Include="MainFrm.cpp" />
     <ClCompile Include="Models.cpp" />
     <ClCompile Include="pch.cpp">

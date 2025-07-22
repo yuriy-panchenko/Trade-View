@@ -63,6 +63,9 @@
     <ClInclude Include="CWorketThread.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Intervals.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Trade View.cpp">
@@ -102,6 +105,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="CWorketThread.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Intervals.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

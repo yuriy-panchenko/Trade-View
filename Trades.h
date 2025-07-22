@@ -8,6 +8,8 @@ struct TRADES_STATISTIC
 class TradeFile
 {
 public:
+	using TradeList = std::vector<TradeSummary>;
+public:
 	TradeFile() = default;
 	TradeFile(TradeFile const&) = default;
 	TradeFile(TradeFile&&) = default;
@@ -25,6 +27,7 @@ public:
 	inline std::vector<TradeSummary> const& GetTrades()const { return m_Trades; }
 	inline int GetID()const { return m_ID; }
 	void SetID(int id) { m_ID = id; }
+	inline fs::path const& GetFilepath()const { return m_Filepath; }
 
 private:
 	void ParseText(std::istream&);
@@ -38,6 +41,6 @@ private:
 	fs::path m_Filepath;
 	int m_ID;
 	TRADES_STATISTIC m_Stat;
-	std::vector<TradeSummary> m_Trades;
+	TradeList m_Trades;
 };
 

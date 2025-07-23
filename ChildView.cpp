@@ -454,7 +454,7 @@ void CChildView::UpdateListScanResults(size_t const index)
 	str.Format(_T("%I64u"), inters.GetTradeCount());
 	item.pszText = (LPTSTR)(LPCTSTR)str;
 	m_List.SetItem(&item);
-	
+
 	++item.iSubItem;
 	str.Format(_T("%.2f"), in_time * 100 / (double)inters.GetTotalTime());
 	item.pszText = (LPTSTR)(LPCTSTR)str;
@@ -543,9 +543,6 @@ void CChildView::OnRemoveSelected()
 				temp.push_back(std::move(m_Best[i]));
 
 		std::swap(m_Best, temp);
-		PrepareList(m_isScanningMode);
-		LoadBest();
-		Invalidate();
 	}
 	else
 	{
@@ -555,21 +552,19 @@ void CChildView::OnRemoveSelected()
 				temp.push_back(std::move(m_Files[i]));
 
 		std::swap(m_Files, temp);
-		PrepareList(m_isScanningMode);
-		LoadFiles();
-		Invalidate();
 	}
+	LoadList();
 }
 
 void CChildView::OnUpdateRemoveSelected(CCmdUI* pCmdUI)
 {
 	BOOL canRemove;
-	
+
 	if (m_isScanningMode)
 		canRemove = !m_Best.empty();
 	else canRemove = !m_Files.empty() && m_Best.empty();
 
-	pCmdUI->Enable(canRemove&&m_List.GetSelectedCount());
+	pCmdUI->Enable(canRemove && m_List.GetSelectedCount());
 }
 
 void CChildView::OnFileSave()
@@ -640,11 +635,7 @@ void CChildView::OnUpdateFileSave(CCmdUI* pCmdUI)
 void CChildView::OnSwapTables()
 {
 	BeginWaitCursor();
-	PrepareList(!m_isScanningMode);
-	if (m_isScanningMode)
-		LoadBest();
-	else LoadFiles();
-	Invalidate();
+	LoadList(!m_isScanningMode);
 	EndWaitCursor();
 }
 
@@ -664,4 +655,16 @@ void CChildView::LoadBest()
 	}
 	AutosizeColumns();
 	m_List.SetRedraw();
+}
+
+void CChildView::LoadList(BOOL const isScanning)
+{
+	PrepareList(isScanning);
+	isScanning ? LoadBest() : LoadFiles();
+	Invalidate();
+}
+
+void CChildView::LoadList()
+{
+	LoadList(m_isScanningMode);
 }

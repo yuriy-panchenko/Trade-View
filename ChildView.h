@@ -66,6 +66,8 @@ private:
 	void UpdateLayout();
 	void LoadFiles();
 	void LoadBest();
+	void LoadList(BOOL const isScanning);
+	void LoadList();
 	std::set<int> GetSelectedIndexes();
 
 	CSortListCtrl m_List;

@@ -54,6 +54,8 @@ protected:
 	afx_msg void OnUpdateFileSave(CCmdUI* pCmdUI);
 	afx_msg void OnSwapTables();
 	afx_msg void OnUpdateSwapTables(CCmdUI* pCmdUI);
+	afx_msg void OnShowInfo();
+	afx_msg void OnUpdateShowInfo(CCmdUI* pCmdUI);
 	DECLARE_MESSAGE_MAP()
 
 private:
@@ -69,15 +71,17 @@ private:
 	void LoadList(BOOL const isScanning);
 	void LoadList();
 	std::set<int> GetSelectedIndexes();
+	void DrawInfo(CDC&,CRect const&);
 
 	CSortListCtrl m_List;
 	CRect m_Canvas;
 	std::vector<TradeFile> m_Files;
 	Scan::BestModels m_Best;
-	BOOL m_isScanningMode;
+	BOOL m_isScanningMode,m_doShowInfo;
 	Scan::Models m_Scan;
 	CScanSettingsDlg m_SetsDlg;
 	CFont m_fontScanning;
 	int m_iListWidth;
+	CFont m_InfoFont;// , m_InfoFontBold;
 };
 

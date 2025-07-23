@@ -28,12 +28,15 @@ public:
 	inline int GetID()const { return m_ID; }
 	void SetID(int id) { m_ID = id; }
 	inline fs::path const& GetFilepath()const { return m_Filepath; }
+	fs::path GetSettingsFilePath()const;
+	SetFile GetSettings()const;
 
 private:
 	void ParseText(std::istream&);
 	static TradeSummary ParseLine(std::string const& line);
 	void UpdateStatistics();
 	std::vector<double> GetCumulative()const;
+	CString GetSettingsFileText()const;
 	static bool CalculateLinearRegression(std::vector<double> const chartline, double& k, double& b);
 	static bool  CalculateStdError(std::vector<double> const& data, double  a_coef, double  b_coef, double& std_err);
 

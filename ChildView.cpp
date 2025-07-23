@@ -11,21 +11,35 @@
 #define new DEBUG_NEW
 #endif
 
-constexpr COLORREF color[] = { RGB(0,255,0), RGB(255,0,0), RGB(0,0,255), };
+constexpr auto
+SECTION_SETTINGS{ _T("Settings") },
+ENTRY_SHOW_INFO{ _T("ShowInfo") };
+
+constexpr COLORREF model_colors[] = { RGB(0,255,0), RGB(255,0,0), RGB(0,0,255), };
 
 // CChildView
 CChildView::CChildView()
 	:m_isScanningMode{ FALSE }
+	, m_doShowInfo{ FALSE }
 	, m_iListWidth{ 400 }
 	, m_SetsDlg{ this }
 {
 	LOGFONT lf{};
 
-	lf.lfHeight = 25;
+	lf.lfHeight = 26;
 	lf.lfWeight = FW_BOLD;
 	wcscpy_s(lf.lfFaceName, _T("Arial"));
-
 	m_fontScanning.CreateFontIndirect(&lf);
+
+	lf.lfHeight = 16;
+	lf.lfWeight = FW_NORMAL;
+	wcscpy_s(lf.lfFaceName, _T("Times New Roman"));
+	m_InfoFont.CreateFontIndirect(&lf);
+
+	//lf.lfWeight = FW_BOLD;
+	//m_InfoFontBold.CreateFontIndirect(&lf);
+
+	m_doShowInfo = theApp.GetProfileInt(SECTION_SETTINGS, ENTRY_SHOW_INFO, FALSE);
 }
 
 CChildView::~CChildView()
@@ -51,6 +65,8 @@ BEGIN_MESSAGE_MAP(CChildView, CWnd)
 	ON_UPDATE_COMMAND_UI(ID_FILE_SAVE, &CChildView::OnUpdateFileSave)
 	ON_COMMAND(ID_SWAP_TABLES, &CChildView::OnSwapTables)
 	ON_UPDATE_COMMAND_UI(ID_SWAP_TABLES, &CChildView::OnUpdateSwapTables)
+	ON_COMMAND(ID_SHOW_INFO, &CChildView::OnShowInfo)
+	ON_UPDATE_COMMAND_UI(ID_SHOW_INFO, &CChildView::OnUpdateShowInfo)
 END_MESSAGE_MAP()
 
 // CChildView message handlers
@@ -70,7 +86,7 @@ BOOL CChildView::PreCreateWindow(CREATESTRUCT& cs)
 
 void CChildView::OnPaint()
 {
-	constexpr auto margin{ 20 };
+	constexpr auto margin{ 15 };
 
 	CPaintDC dc(this); // device context for painting
 
@@ -99,7 +115,7 @@ void CChildView::OnPaint()
 		else
 		{
 			int i{ 0 };
-			constexpr int color_num{ sizeof(color) / sizeof(COLORREF) };
+			constexpr int color_num{ sizeof(model_colors) / sizeof(COLORREF) };
 
 			auto pos{ m_List.GetFirstSelectedItemPosition() };
 
@@ -110,7 +126,7 @@ void CChildView::OnPaint()
 				auto data = m_List.GetItemData(ind);
 
 				for (auto p : m_Best[data].GetSubModels())
-					draw.Add(*p, color[i++ % color_num]);
+					draw.Add(*p, model_colors[i++ % color_num]);
 
 			}
 			draw.Draw(dc, rect);
@@ -119,7 +135,7 @@ void CChildView::OnPaint()
 	else
 	{
 		int i{ 0 };
-		constexpr int color_num{ sizeof(color) / sizeof(COLORREF) };
+		constexpr int color_num{ sizeof(model_colors) / sizeof(COLORREF) };
 		auto pos{ m_List.GetFirstSelectedItemPosition() };
 
 		Draw::CummulativeChart draw;
@@ -127,12 +143,78 @@ void CChildView::OnPaint()
 		{
 			int ind = m_List.GetNextSelectedItem(pos);
 			auto data = m_List.GetItemData(ind);
-			draw.Add(m_Files[data], color[i++ % color_num]);
+			draw.Add(m_Files[data], model_colors[i++ % color_num]);
 		}
 		draw.Draw(dc, rect);
 	}
+
+	if (m_doShowInfo)
+		DrawInfo(dc, rect);
 }
 
+void CChildView::DrawInfo(CDC& dc, CRect const& canvas)
+{
+	int i{ 0 };
+	constexpr int color_num{ sizeof(model_colors) / sizeof(COLORREF) };
+	auto pos{ m_List.GetFirstSelectedItemPosition() };
+	auto rect{ canvas };
+	auto const iSave{ dc.SaveDC() };
+	dc.SelectObject(&m_InfoFont);
+
+	auto draw_item = [&dc, this](SetFile::value_type& val, COLORREF color, CRect& r)
+		{
+			dc.SetTextColor(color);
+			dc.DrawText(val.first.c_str(), (int)val.first.length(), r, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_CALCRECT);
+			dc.DrawText(val.first.c_str(), (int)val.first.length(), r, DT_LEFT | DT_TOP | DT_SINGLELINE);
+			r.left = r.right + 5;
+
+			dc.SetTextColor(RGB(200, 200, 200));
+			dc.DrawText(_T("="), 1, r, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_CALCRECT);
+			dc.DrawText(_T("="), 1, r, DT_LEFT | DT_TOP | DT_SINGLELINE);
+			r.left = r.right + 5;
+
+			//dc.SelectObject(&m_InfoFontBold);
+			dc.SetTextColor(color);
+			dc.DrawText(val.second.c_str(), (int)val.second.length(), r, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_CALCRECT);
+			dc.DrawText(val.second.c_str(), (int)val.second.length(), r, DT_LEFT | DT_TOP | DT_SINGLELINE);
+
+			r.top = r.bottom;
+		};
+
+	auto draw_text = [&](SetFile&& sets, COLORREF color)
+		{
+			auto r{ rect };
+
+			if (sets.empty())
+			{
+				CString const str{ _T("No settings file found!") };
+				dc.SetTextColor(color);
+				dc.DrawText(str, r, DT_LEFT | DT_TOP | DT_CALCRECT);
+				dc.DrawText(str, r, DT_LEFT | DT_TOP);
+			}
+			else for (auto& item : sets)
+			{
+				draw_item(item, color, r);
+				r.left = rect.left;
+			}
+
+			rect.top = r.bottom + 5;
+		};
+
+	while (pos)
+	{
+		int const index{ m_List.GetNextSelectedItem(pos) };
+		auto const data{ m_List.GetItemData(index) };
+
+		if (m_isScanningMode)
+			for (auto pFile : m_Best[data].GetSubModels())
+				draw_text(pFile->GetSettings(), model_colors[i++ % color_num]);
+		else
+			draw_text(m_Files[data].GetSettings(), model_colors[i++ % color_num]);
+	}
+
+	dc.RestoreDC(iSave);
+}
 
 void CChildView::OnAddFolder()
 {
@@ -667,4 +749,16 @@ void CChildView::LoadList(BOOL const isScanning)
 void CChildView::LoadList()
 {
 	LoadList(m_isScanningMode);
+}
+void CChildView::OnShowInfo()
+{
+	m_doShowInfo = !m_doShowInfo;
+	Invalidate();
+	theApp.WriteProfileInt(SECTION_SETTINGS, ENTRY_SHOW_INFO, m_doShowInfo);
+}
+
+void CChildView::OnUpdateShowInfo(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_doShowInfo);
+	pCmdUI->Enable(m_List.GetSelectedCount());
 }

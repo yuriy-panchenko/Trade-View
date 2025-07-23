@@ -19,5 +19,6 @@
 #include "framework.h"
 
 namespace fs = std::filesystem;
+using SetFile = std::unordered_map<std::wstring, std::wstring>;
 
 #endif //PCH_H

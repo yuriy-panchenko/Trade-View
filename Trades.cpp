@@ -2,8 +2,8 @@
 #include "Trades.h"
 
 TradeFile::TradeFile(fs::path const& fname)
-	:m_Filepath{fname}
-	,m_Stat{}
+	:m_Filepath{ fname }
+	, m_Stat{}
 {
 	std::ifstream file{ fname };
 	std::string line;
@@ -30,6 +30,71 @@ TradeFile TradeFile::operator+(TradeFile const& oth) const
 
 
 	return *this;
+}
+
+CString TradeFile::GetSettingsFileText() const
+{
+	CString ret;
+	CFile file;
+	if (file.Open(GetSettingsFilePath().wstring().c_str(), CFile::modeRead))
+	{
+		auto const bytes{ file.GetLength() };
+		auto buff{ std::make_unique<WCHAR[]>(bytes / sizeof WCHAR + 1) };
+		file.Read(buff.get(), (UINT)bytes);
+		buff[bytes / sizeof WCHAR] = L'\0';
+		ret.Insert(0, &buff[1]);
+	}
+	return ret;
+}
+
+fs::path TradeFile::GetSettingsFilePath() const
+{
+	auto ret{ m_Filepath };
+	ret.replace_extension(".set");
+	return ret;
+}
+
+SetFile TradeFile::GetSettings() const
+{
+	auto split = [](CString const& str)->SetFile::value_type
+		{
+			auto const eqIndex{ str.Find(_T('=')) };
+			std::wstring key{ str.Left(eqIndex) }, value{ str.Right(str.GetLength() - eqIndex - 1) };
+			auto dotIndex{ value.find(L".") };
+			if (dotIndex != std::wstring::npos)
+			{
+				auto riter{ value.rbegin() };
+				for (; riter != value.rend(); ++riter)
+					if (*riter == L'.')
+					{
+						++riter;
+						break;
+					}
+					else if (*riter != L'0')
+						break;
+
+				value.erase(riter.base(), value.end());
+			}
+
+			return { key, value };
+		};
+
+	SetFile ret;
+
+	auto text{ GetSettingsFileText() };
+
+	if (!text.IsEmpty())
+	{
+		int pos{ 0 };
+		auto str{ text.Tokenize(_T("\r\n"), pos) };
+		while (!str.IsEmpty())
+		{
+			ret.insert(split(str));
+			str = text.Tokenize(_T("\r\n"), pos);
+		}
+	}
+
+	return ret;
 }
 
 void TradeFile::ParseText(std::istream& iss)
@@ -131,7 +196,7 @@ void TradeFile::UpdateStatistics()
 		}
 		m_Stat.timeIn += t.close_time - t.open_time;
 	}
-	
+
 	m_Stat.timeTotal = m_Trades.back().close_time - m_Trades.front().open_time;
 
 	double k, b, err;

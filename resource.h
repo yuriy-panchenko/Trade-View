@@ -23,6 +23,7 @@
 #define ID_REMOVE_SELECTED              32775
 #define ID_SWAP_TABLES                  32777
 #define ID_BUTTON32778                  32778
+#define ID_SHOW_INFO                    32778
 
 // Next default values for new objects
 // 

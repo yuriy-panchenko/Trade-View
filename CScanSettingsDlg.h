@@ -27,11 +27,15 @@ protected:
 
 	afx_msg void DefaultProc();
 	afx_msg void DefaultEditProc();
+	afx_msg void OnBnClickedScan4Net();
+	afx_msg void OnBnClickedScan4Factor();
+	afx_msg void OnBnClickedScan4Custom();
 	DECLARE_MESSAGE_MAP()
 
 public:
 	void UpdateControls();
 	void UpdateInfo();
+	static CString InsertApostrofie(size_t val);
 
 	int m_Scan_Count;
 	double m_Min_Profit;
@@ -45,7 +49,4 @@ public:
 	CString m_Info_Text;
 	CWnd* m_pView;
 	size_t m_uModelCount;
-	afx_msg void OnBnClickedScan4Net();
-	afx_msg void OnBnClickedScan4Factor();
-	afx_msg void OnBnClickedScan4Custom();
 };

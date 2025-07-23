@@ -137,7 +137,7 @@ BOOL CScanSettingsDlg::OnInitDialog()
 	// EXCEPTION: OCX Property Pages should return FALSE
 }
 
-CString InsertApostrofie(size_t val)
+CString CScanSettingsDlg::InsertApostrofie(size_t val)
 {
 	CString ret;
 	ret.Format(_T("%I64u"), val);

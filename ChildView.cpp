@@ -17,6 +17,7 @@ constexpr COLORREF color[] = { RGB(0,255,0), RGB(255,0,0), RGB(0,0,255), };
 CChildView::CChildView()
 	:m_isScanningMode{ FALSE }
 	, m_iListWidth{ 400 }
+	, m_SetsDlg{ this }
 {
 	LOGFONT lf{};
 

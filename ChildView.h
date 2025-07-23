@@ -22,6 +22,7 @@ public:
 
 	// Attributes
 public:
+	inline std::vector<TradeFile> const& GetFiles()const { return m_Files; }
 
 	// Operations
 public:
@@ -45,8 +46,8 @@ protected:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnListItemChanged(NMHDR*, LRESULT*);
 	afx_msg void OnDestroy();
-	afx_msg LRESULT OnScanFinished(WPARAM,LPARAM);
-	afx_msg LRESULT OnBetterResult(WPARAM,LPARAM);
+	afx_msg LRESULT OnScanFinished(WPARAM, LPARAM);
+	afx_msg LRESULT OnBetterResult(WPARAM, LPARAM);
 	afx_msg void OnRemoveSelected();
 	afx_msg void OnUpdateRemoveSelected(CCmdUI* pCmdUI);
 	afx_msg void OnFileSave();

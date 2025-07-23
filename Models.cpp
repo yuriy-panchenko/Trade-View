@@ -39,15 +39,7 @@ namespace Scan
 
 		m_Comp.Init(dlg.m_Scan_Count, dlg.m_Scan4_Net, dlg.m_Scan4_Factor, dlg.m_Scan4_Custom);
 
-		for (auto& file : files)
-		{
-			auto& stat{ file.GetStats() };
-			if (dlg.m_UseMinProfit && (stat.profit - stat.loss) / 100. < dlg.m_Min_Profit)
-				continue;
-			if (dlg.m_UseMinTrades && (stat.iWon + stat.iLost) < dlg.m_Min_Trades)
-				continue;
-			m_Files.push_back(&file);
-		}
+		m_Files = dlg.Filter(files);
 
 		if (m_Files.size() < 2)
 			::AfxMessageBox(_T("There nothing to scan!"), MB_OK | MB_ICONERROR);

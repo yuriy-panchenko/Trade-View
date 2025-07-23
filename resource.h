@@ -17,10 +17,10 @@
 #define IDC_SCAN4_NET                   1008
 #define IDC_SCAN4_FACTOR                1009
 #define IDC_SCAN4_CUSTOM                1010
+#define IDC_INFO_TEXT                   1011
 #define ID_ADD_FOLDER                   32773
 #define ID_SCAN_TRADES                  32774
 #define ID_REMOVE_SELECTED              32775
-#define ID_BUTTON32777                  32777
 #define ID_SWAP_TABLES                  32777
 
 // Next default values for new objects
@@ -29,7 +29,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        312
 #define _APS_NEXT_COMMAND_VALUE         32778
-#define _APS_NEXT_CONTROL_VALUE         1009
+#define _APS_NEXT_CONTROL_VALUE         1012
 #define _APS_NEXT_SYMED_VALUE           311
 #endif
 #endif

@@ -547,7 +547,7 @@ void CChildView::OnRemoveSelected()
 		LoadBest();
 		Invalidate();
 	}
-	/*else
+	else
 	{
 		decltype(m_Files) temp;
 		for (int i = 0; i < (int)m_Files.size(); i++)
@@ -558,12 +558,18 @@ void CChildView::OnRemoveSelected()
 		PrepareList(m_isScanningMode);
 		LoadFiles();
 		Invalidate();
-	}*/
+	}
 }
 
 void CChildView::OnUpdateRemoveSelected(CCmdUI* pCmdUI)
 {
-	pCmdUI->Enable(m_isScanningMode && m_List.GetSelectedCount());
+	BOOL canRemove;
+	
+	if (m_isScanningMode)
+		canRemove = !m_Best.empty();
+	else canRemove = !m_Files.empty() && m_Best.empty();
+
+	pCmdUI->Enable(canRemove&&m_List.GetSelectedCount());
 }
 
 void CChildView::OnFileSave()
@@ -645,7 +651,7 @@ void CChildView::OnSwapTables()
 void CChildView::OnUpdateSwapTables(CCmdUI* pCmdUI)
 {
 	pCmdUI->SetCheck(m_isScanningMode);
-	//pCmdUI->Enable(!m_Files.empty() && !m_Best.empty());
+	//pCmdUI->Enable(!m_Files.empty() && m_Best.empty());
 }
 
 void CChildView::LoadBest()

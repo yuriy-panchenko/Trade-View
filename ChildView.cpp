@@ -146,8 +146,8 @@ void CChildView::OnPaint()
 		{
 			int ind = m_List.GetNextSelectedItem(pos);
 			auto data = m_List.GetItemData(ind);
-			assert(ind > -1 && ind < m_Best.size());
-			assert(data > -1 && data < m_Best.size());
+			assert(ind > -1 && ind < m_Files.size());
+			assert(data > -1 && data < m_Files.size());
 			draw.Add(m_Files[data], model_colors[i++ % color_num]);
 		}
 		draw.Draw(dc, rect);

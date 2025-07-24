@@ -67,6 +67,7 @@ BEGIN_MESSAGE_MAP(CChildView, CWnd)
 	ON_UPDATE_COMMAND_UI(ID_SWAP_TABLES, &CChildView::OnUpdateSwapTables)
 	ON_COMMAND(ID_SHOW_INFO, &CChildView::OnShowInfo)
 	ON_UPDATE_COMMAND_UI(ID_SHOW_INFO, &CChildView::OnUpdateShowInfo)
+	ON_WM_ERASEBKGND()
 END_MESSAGE_MAP()
 
 // CChildView message handlers
@@ -86,12 +87,28 @@ BOOL CChildView::PreCreateWindow(CREATESTRUCT& cs)
 
 void CChildView::OnPaint()
 {
+
+	CPaintDC dc{ this }; // device context for painting
+
+	CBitmap bmp;
+	bmp.CreateCompatibleBitmap(&dc, m_Canvas.Width(), m_Canvas.Height());
+	CDC memDC;
+	memDC.CreateCompatibleDC(&dc);
+	int const iSave{ memDC.SaveDC() };
+	memDC.SelectObject(bmp);
+	auto rect{ m_Canvas };
+	rect.OffsetRect(-rect.TopLeft());
+	memDC.FillSolidRect(rect, RGB(20, 20, 20));
+	Draw(memDC, rect);
+	dc.BitBlt(m_Canvas.left, m_Canvas.top, m_Canvas.Width(), m_Canvas.Height(), &memDC, 0, 0, SRCCOPY);
+	memDC.RestoreDC(iSave);
+}
+
+void CChildView::Draw(CDC& dc, CRect const& canvas)
+{
 	constexpr auto margin{ 15 };
 
-	CPaintDC dc(this); // device context for painting
-
-	dc.FillSolidRect(m_Canvas, RGB(20, 20, 20));
-	auto rect{ m_Canvas };
+	auto rect{ canvas };
 	rect.DeflateRect(margin, margin, margin, margin);
 
 	if (m_isScanningMode)
@@ -125,9 +142,6 @@ void CChildView::OnPaint()
 				int ind = m_List.GetNextSelectedItem(pos);
 				auto data = m_List.GetItemData(ind);
 
-				assert(ind > -1 && ind < m_Best.size());
-				assert(data > -1 && data < m_Best.size());
-
 				for (auto p : m_Best[data].GetSubModels())
 					draw.Add(*p, model_colors[i++ % color_num]);
 
@@ -146,8 +160,6 @@ void CChildView::OnPaint()
 		{
 			int ind = m_List.GetNextSelectedItem(pos);
 			auto data = m_List.GetItemData(ind);
-			assert(ind > -1 && ind < m_Files.size());
-			assert(data > -1 && data < m_Files.size());
 			draw.Add(m_Files[data], model_colors[i++ % color_num]);
 		}
 		draw.Draw(dc, rect);
@@ -785,4 +797,12 @@ void CChildView::OnUpdateShowInfo(CCmdUI* pCmdUI)
 {
 	pCmdUI->SetCheck(m_doShowInfo);
 	pCmdUI->Enable(m_List.GetSelectedCount());
+}
+
+BOOL CChildView::OnEraseBkgnd(CDC* pDC)
+{
+	// TODO: Add your message handler code here and/or call default
+
+	//return CWnd::OnEraseBkgnd(pDC);
+	return TRUE;
 }

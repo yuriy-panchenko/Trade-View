@@ -72,6 +72,7 @@ private:
 	void LoadList();
 	std::set<int> GetSelectedIndexes();
 	void DrawInfo(CDC&,CRect const&);
+	void Draw(CDC&, CRect const&);
 
 	CSortListCtrl m_List;
 	CRect m_Canvas;
@@ -83,5 +84,7 @@ private:
 	CFont m_fontScanning;
 	int m_iListWidth;
 	CFont m_InfoFont;// , m_InfoFontBold;
+public:
+	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 };
 

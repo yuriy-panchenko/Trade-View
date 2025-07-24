@@ -111,58 +111,39 @@ void CChildView::Draw(CDC& dc, CRect const& canvas)
 	auto rect{ canvas };
 	rect.DeflateRect(margin, margin, margin, margin);
 
-	if (m_isScanningMode)
+	if (m_isScanningMode && m_Scan.IsScanning())
 	{
 		auto const info{ m_Scan.GetInfo() };
-		if (m_Scan.IsScanning())
-		{
-			int const iSave{ dc.SaveDC() };
-			CString str;
-			str.Format(_T("%s ... %I64u / %I64u, %.1f%%"),
-				info.isStopping ? _T("STOPPING") : _T("Scanning"),
-				info.finished,
-				info.total,
-				info.total ? info.finished * 100. / info.total : .0);
-			dc.SetTextColor(RGB(200, 200, 0));
-			dc.SetBkMode(TRANSPARENT);
-			dc.SelectObject(&m_fontScanning);
-			dc.DrawText(str, rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-			dc.RestoreDC(iSave);
-		}
-		else
-		{
-			int i{ 0 };
-			constexpr int color_num{ sizeof(model_colors) / sizeof(COLORREF) };
-
-			auto pos{ m_List.GetFirstSelectedItemPosition() };
-
-			Draw::CummulativeChart draw;
-			while (pos)
-			{
-				int ind = m_List.GetNextSelectedItem(pos);
-				auto data = m_List.GetItemData(ind);
-
-				for (auto p : m_Best[data].GetSubModels())
-					draw.Add(*p, model_colors[i++ % color_num]);
-
-			}
-			draw.Draw(dc, rect);
-		}
+		CString str;
+		str.Format(_T("%s ... %I64u / %I64u, %.1f%%"),
+			info.isStopping ? _T("STOPPING") : _T("Scanning"),
+			info.finished,
+			info.total,
+			info.total ? info.finished * 100. / info.total : .0);
+		dc.SetTextColor(RGB(200, 200, 0));
+		dc.SetBkMode(TRANSPARENT);
+		dc.SelectObject(&m_fontScanning);
+		dc.DrawText(str, rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 	}
 	else
 	{
 		int i{ 0 };
 		constexpr int color_num{ sizeof(model_colors) / sizeof(COLORREF) };
 		auto pos{ m_List.GetFirstSelectedItemPosition() };
-
-		Draw::CummulativeChart draw;
-		while (pos)
+		if (pos)
 		{
-			int ind = m_List.GetNextSelectedItem(pos);
-			auto data = m_List.GetItemData(ind);
-			draw.Add(m_Files[data], model_colors[i++ % color_num]);
+			Draw::CummulativeChart draw;
+			while (pos)
+			{
+				int const ind{ m_List.GetNextSelectedItem(pos) };
+				auto const data{ m_List.GetItemData(ind) };
+				if (m_isScanningMode)
+					for (auto p : m_Best[data].GetSubModels())
+						draw.Add(*p, model_colors[i++ % color_num]);
+				else draw.Add(m_Files[data], model_colors[i++ % color_num]);
+			}
+			draw.Draw(dc, rect);
 		}
-		draw.Draw(dc, rect);
 	}
 
 	if (m_doShowInfo)

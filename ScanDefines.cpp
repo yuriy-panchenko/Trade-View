@@ -3,6 +3,8 @@
 
 namespace Scan
 {
+	int ModelBunch::InTimeMin, ModelBunch::InTimeMax, ModelBunch::TradesMin, ModelBunch::TradesMax, ModelBunch::ConMin, ModelBunch::ConMax;
+
 	void Timeline::insert(__time32_t t, double v)
 	{
 		while (pts.contains(t))++t;
@@ -26,8 +28,22 @@ namespace Scan
 		subModels.push_back(pFile);
 	}
 
-	void ModelBunch::Calculate()
+	bool ModelBunch::Calculate()
 	{
+		m_Inters = {};
+
+		for (auto pFile : subModels)
+			m_Inters += *pFile;
+
+		auto in_time{ m_Inters.GetInTime() * 100. / m_Inters.GetTotalTime() };
+		if (in_time<InTimeMin || in_time>InTimeMax)
+			return false;
+		if (m_Inters.GetTradeCount() < TradesMin || m_Inters.GetTradeCount() > TradesMax)
+			return false;
+		in_time = m_Inters.GetConstructive() * 100. / m_Inters.GetInTime();
+		if (in_time<ConMin || in_time>ConMax)
+			return false;
+
 		Timeline tl;
 
 		for (auto pFile : subModels)
@@ -35,11 +51,6 @@ namespace Scan
 
 		combined = tl;
 		combined /= subModels.size();
-
-		m_Inters = {};
-
-		for (auto pFile : subModels)
-			m_Inters += *pFile;
 
 		double profit{ .0 }, loss{ .0 };
 		int won{ 0 }, lost{ 0 };
@@ -63,6 +74,8 @@ namespace Scan
 
 		Factor = profit / loss;
 		Custom = combined.GetCustom();
+
+		return true;
 	}
 
 	bool ModelBunch::operator==(ModelBunch const& oth) const
@@ -81,6 +94,14 @@ namespace Scan
 	{
 		for (auto val : subModels)
 			if (val == p)
+				return true;
+		return false;
+	}
+
+	bool ModelBunch::has_one_file(ModelBunch const& oth) const
+	{
+		for (auto p : oth.GetSubModels())
+			if (has(p))
 				return true;
 		return false;
 	}
@@ -142,99 +163,50 @@ namespace Scan
 		Init(maxModels, bNet, bFactor, bCustom);
 	}
 
-	void CompareObj::operator+=(BestModels&& bm)
+	/*void CompareObj::operator+=(BestModels&& bm)
 	{
 		for (auto& m : bm)
 			Test(m);
-	}
+	}*/
 
 	void CompareObj::Init(int maxModels, BOOL bNet, BOOL bFactor, BOOL bCustom)
 	{
-		maxModelCount = maxModels;
+		CSingleLock _o{ &m_CS, TRUE };
 		if (bNet)
+		{
 			bestNet = std::make_unique<BestModels>();
+			bestNet->maxModelCount = maxModels;
+		}
 		if (bFactor)
+		{
 			bestFactor = std::make_unique<BestModels>();
+			bestFactor->maxModelCount = maxModels;
+		}
 		if (bCustom)
+		{
 			bestCustom = std::make_unique<BestModels>();
+			bestCustom->maxModelCount = maxModels;
+		}
 	}
 
-	void CompareObj::Reset()
+	void CompareObj::Reset(int maxModelCount)
 	{
 		Init(maxModelCount, (bool)bestNet, (bool)bestFactor, (bool)bestCustom);
 	}
 
 	bool CompareObj::Test(const ModelBunch& mb)
 	{
-		auto check_net = [&mb](BestModels& bm)->bool
-			{
-				auto iter{ bm.begin() }, itMin{ iter };
-
-				while (++iter != bm.end())
-					if (iter->GetNet() < itMin->GetNet())
-						itMin = iter;
-
-				if (itMin->GetNet() < mb.GetNet())
-				{
-					*itMin = mb;
-					return true;
-				}
-				return false;
-			};
-
-		auto check_factor = [&mb](BestModels& bm)->bool
-			{
-				auto iter{ bm.begin() }, itMin{ iter };
-
-				while (++iter != bm.end())
-					if (iter->GetFactor() < itMin->GetFactor())
-						itMin = iter;
-
-				if (itMin->GetFactor() < mb.GetFactor())
-				{
-					*itMin = mb;
-					return true;
-				}
-				return false;
-			};
-
-		auto check_custom = [&mb](BestModels& bm)->bool
-			{
-				auto iter{ bm.begin() }, itMin{ iter };
-
-				while (++iter != bm.end())
-					if (iter->GetCustom() < itMin->GetCustom())
-						itMin = iter;
-
-				if (itMin->GetCustom() < mb.GetCustom())
-				{
-					*itMin = mb;
-					return true;
-				}
-				return false;
-			};
-
-		auto check = [&mb, this](BestModels& bm, std::function<bool(BestModels&)>&& proc)->bool
-			{
-				if (bm.size() < maxModelCount)
-				{
-					bm.push_back(mb);
-					return true;
-				}
-				return proc(bm);
-			};
-
+		CSingleLock _o{ &m_CS, TRUE };
 		bool bUpdated{ false };
 
 		if (bestNet)
-			bUpdated |= check(*bestNet, check_net);
+			bUpdated |= bestNet->update<BestModels::Net>(mb);
 		if (bestFactor)
-			bUpdated |= check(*bestFactor, check_factor);
+			bUpdated |= bestFactor->update<BestModels::Factor>(mb);
 		if (bestCustom)
-			bUpdated |= check(*bestCustom, check_custom);
+			bUpdated |= bestCustom->update<BestModels::Custom>(mb);
 
-#ifdef DEBUG
-
+#ifdef DEBUG0
 		auto compare_best_single = [](BestModels const& bm)
 			{
 				for (auto it_a = bm.begin(); it_a != bm.end(); it_a++)
@@ -283,6 +255,7 @@ namespace Scan
 							ret.push_back(val);
 			};
 
+		CSingleLock _o{ &m_CS, TRUE };
 		add_block(bestNet.get());
 		add_block(bestFactor.get());
 		add_block(bestCustom.get());
@@ -334,5 +307,17 @@ namespace Scan
 			error += sq(lr_k * i + lr_b - pts[i].second);
 
 		std_err = std::sqrt(error / (N - 2));
+	}
+
+	BestModels::iterator BestModels::test_for_unique(ModelBunch const& mb)
+	{
+		auto iter{ begin() };
+
+		while (iter != end())
+			if (iter->has_one_file(mb))
+				break;
+			else ++iter;
+
+		return iter;
 	}
 }

@@ -17,6 +17,12 @@
 #define ENTRY_SCAN4_NET		_T("Scan4Net")
 #define ENTRY_USE_MIN_PROFIT		_T("UseMinProfit")
 #define ENTRY_USE_MIN_TRADES		_T("UseMinTrades")
+#define ENTRY_CON_MAX			_T("ConMax")
+#define ENTRY_CON_MIN			_T("ConMin")
+#define ENTRY_INTIME_MAX		_T("InTimeMax")
+#define ENTRY_INTIME_MIN		_T("InTimeMin")
+#define ENTRY_TRADES_MAX		_T("TradesMax")
+#define ENTRY_TRADES_MIN		_T("TradesMin")
 // CScanSettingsDlg dialog
 
 IMPLEMENT_DYNAMIC(CScanSettingsDlg, CDialogEx)
@@ -34,6 +40,12 @@ CScanSettingsDlg::CScanSettingsDlg(CWnd* pParent /*=nullptr*/)
 	, m_UseMinProfit(FALSE)
 	, m_UseMinTrades(FALSE)
 	, m_Info_Text(_T(""))
+	, m_Con_Max(0)
+	, m_Con_Min(0)
+	, m_InTime_Max(0)
+	, m_InTime_Min(0)
+	, m_Trades_Max(0)
+	, m_Trades_Min(0)
 {
 	m_Scan_Count = theApp.GetProfileInt(KEY_SETTINGS, ENTRY_SCAN_COUNT, 10);
 	m_Min_Profit = std::stof(theApp.GetProfileString(KEY_SETTINGS, ENTRY_MIN_PROFIT, _T("0.0")).GetString());
@@ -44,6 +56,12 @@ CScanSettingsDlg::CScanSettingsDlg(CWnd* pParent /*=nullptr*/)
 	m_Scan4_Net = theApp.GetProfileInt(KEY_SETTINGS, ENTRY_SCAN4_NET, TRUE);
 	m_UseMinProfit = theApp.GetProfileInt(KEY_SETTINGS, ENTRY_USE_MIN_PROFIT, TRUE);
 	m_UseMinTrades = theApp.GetProfileInt(KEY_SETTINGS, ENTRY_USE_MIN_TRADES, TRUE);
+	m_Con_Max = theApp.GetProfileInt(KEY_SETTINGS, ENTRY_CON_MAX, 100);
+	m_Con_Min = theApp.GetProfileInt(KEY_SETTINGS, ENTRY_CON_MIN, 0);
+	m_InTime_Max = theApp.GetProfileInt(KEY_SETTINGS, ENTRY_INTIME_MAX, 100);
+	m_InTime_Min = theApp.GetProfileInt(KEY_SETTINGS, ENTRY_INTIME_MIN, 0);
+	m_Trades_Max = theApp.GetProfileInt(KEY_SETTINGS, ENTRY_TRADES_MAX, 100);
+	m_Trades_Min = theApp.GetProfileInt(KEY_SETTINGS, ENTRY_TRADES_MIN, 0);
 }
 
 CScanSettingsDlg::~CScanSettingsDlg()
@@ -63,6 +81,16 @@ void CScanSettingsDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_USE_MINIMUM_PROFIT, m_UseMinProfit);
 	DDX_Check(pDX, IDC_USE_MINIMUM_TRADES, m_UseMinTrades);
 	DDX_Text(pDX, IDC_INFO_TEXT, m_Info_Text);
+	DDX_Text(pDX, IDC_CON_MAX, m_Con_Max);
+	DDV_MinMaxInt(pDX, m_Con_Max, 0, 100);
+	DDX_Text(pDX, IDC_CON_MIN, m_Con_Min);
+	DDV_MinMaxInt(pDX, m_Con_Min, 0, 100);
+	DDX_Text(pDX, IDC_INTIME_MAX, m_InTime_Max);
+	DDV_MinMaxInt(pDX, m_InTime_Max, 0, 100);
+	DDX_Text(pDX, IDC_INTIME_MIN, m_InTime_Min);
+	DDV_MinMaxInt(pDX, m_InTime_Min, 0, 100);
+	DDX_Text(pDX, IDC_TRADES_MAX, m_Trades_Max);
+	DDX_Text(pDX, IDC_TRADES_MIN, m_Trades_Min);
 }
 
 
@@ -94,6 +122,12 @@ void CScanSettingsDlg::OnOK()
 		theApp.WriteProfileInt(KEY_SETTINGS, ENTRY_SCAN4_NET, m_Scan4_Net);
 		theApp.WriteProfileInt(KEY_SETTINGS, ENTRY_USE_MIN_PROFIT, m_UseMinProfit);
 		theApp.WriteProfileInt(KEY_SETTINGS, ENTRY_USE_MIN_TRADES, m_UseMinTrades);
+		theApp.WriteProfileInt(KEY_SETTINGS, ENTRY_CON_MAX, m_Con_Max);
+		theApp.WriteProfileInt(KEY_SETTINGS, ENTRY_CON_MIN, m_Con_Min);
+		theApp.WriteProfileInt(KEY_SETTINGS, ENTRY_INTIME_MAX, m_InTime_Max);
+		theApp.WriteProfileInt(KEY_SETTINGS, ENTRY_INTIME_MIN, m_InTime_Min);
+		theApp.WriteProfileInt(KEY_SETTINGS, ENTRY_TRADES_MAX, m_Trades_Max);
+		theApp.WriteProfileInt(KEY_SETTINGS, ENTRY_TRADES_MIN, m_Trades_Min);
 	}
 
 	CDialogEx::OnOK();
@@ -142,7 +176,7 @@ CString CScanSettingsDlg::InsertApostrofie(size_t val)
 	CString ret;
 	ret.Format(_T("%I64u"), val);
 
-	for (int i = ret.GetLength() - 3; i > 0; i-=3)
+	for (int i = ret.GetLength() - 3; i > 0; i -= 3)
 		ret.Insert(i, L' ');
 
 	return ret;

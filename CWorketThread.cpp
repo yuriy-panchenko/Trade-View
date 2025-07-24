@@ -13,21 +13,21 @@ VOID CWorkerThread::OnStartScan(WPARAM, LPARAM)
 {
 	Scan::ModelBunch origin;
 	origin.Add(*m_itFrom);
-	m_objComp.Reset();
+	m_objComp.Reset(m_Model_Count);
 
 	for (auto iter{ std::next(m_itFrom) }; iter != m_itEnd; ++iter)
 	{
 		auto bunch{ origin };
 		bunch.Add(*iter);
-		bunch.Calculate();
-		m_objComp.Test(std::move(bunch));
+		if (bunch.Calculate())
+			m_objComp.Test(std::move(bunch));
 	}
 
 	{
 		CSingleLock _o{ &m_CS, TRUE };
 		m_bWorking = FALSE;
 	}
-	
+
 	m_evFinished.PulseEvent();
 }
 
@@ -57,12 +57,13 @@ void CWorkerThread::Init(CScanSettingsDlg const& dlg, std::vector<TradeFile cons
 {
 	m_itEnd = itEnd;
 	m_pSets = &dlg;
+	m_Model_Count = dlg.m_Model_Count;
 	m_objComp.Init(dlg.m_Model_Count, dlg.m_Scan4_Net, dlg.m_Scan4_Factor, dlg.m_Scan4_Custom);
 }
 
 BOOL CWorkerThread::IsWorking() const
 {
-		CSingleLock _o{ &m_CS, TRUE };
+	CSingleLock _o{ &m_CS, TRUE };
 	return m_bWorking;
 }
 

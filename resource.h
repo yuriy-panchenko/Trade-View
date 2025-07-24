@@ -8,6 +8,7 @@
 #define IDR_MAINFRAME                   128
 #define IDR_TradeViewTYPE               130
 #define ID_LIST_CTRL                    310
+#define IDD_STRING_DLG                  312
 #define IDC_USE_MINIMUM_PROFIT          1000
 #define IDC_MINIMUM_PROFIT              1001
 #define IDC_USE_MINIMUM_TRADES          1002
@@ -18,20 +19,27 @@
 #define IDC_SCAN4_FACTOR                1009
 #define IDC_SCAN4_CUSTOM                1010
 #define IDC_INFO_TEXT                   1011
+#define IDC_TEXT                        1013
+#define IDC_INTIME_MIN                  1014
+#define IDC_INTIME_MAX                  1015
+#define IDC_TRADES_MIN                  1016
+#define IDC_TRADES_MAX                  1017
+#define IDC_CON_MIN                     1018
+#define IDC_INTIME_MAX3                 1019
+#define IDC_CON_MAX                     1019
 #define ID_ADD_FOLDER                   32773
 #define ID_SCAN_TRADES                  32774
 #define ID_REMOVE_SELECTED              32775
 #define ID_SWAP_TABLES                  32777
-#define ID_BUTTON32778                  32778
 #define ID_SHOW_INFO                    32778
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        312
+#define _APS_NEXT_RESOURCE_VALUE        314
 #define _APS_NEXT_COMMAND_VALUE         32779
-#define _APS_NEXT_CONTROL_VALUE         1012
+#define _APS_NEXT_CONTROL_VALUE         1015
 #define _APS_NEXT_SYMED_VALUE           311
 #endif
 #endif

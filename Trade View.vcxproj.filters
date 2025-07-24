@@ -66,6 +66,9 @@
     <ClInclude Include="Intervals.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CStringDlg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Trade View.cpp">
@@ -108,6 +111,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Intervals.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CStringDlg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

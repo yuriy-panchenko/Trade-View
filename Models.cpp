@@ -6,7 +6,7 @@
 #include "MainFrm.h"
 
 #ifdef DEBUG
-#define DEBUG_SINGLE_THREAD
+//#define DEBUG_SINGLE_THREAD
 #endif // DEBUG
 
 
@@ -36,6 +36,13 @@ namespace Scan
 		if (dlg.m_Scan4_Custom)
 			scans += dlg.m_Scan_Count;
 		scans = max(scans, dlg.m_Scan_Count);*/
+
+		ModelBunch::InTimeMax = dlg.m_InTime_Max;
+		ModelBunch::InTimeMin = dlg.m_InTime_Min;
+		ModelBunch::TradesMax = dlg.m_Trades_Max;
+		ModelBunch::TradesMin = dlg.m_Trades_Min;
+		ModelBunch::ConMax = dlg.m_Con_Max;
+		ModelBunch::ConMin = dlg.m_Con_Min;
 
 		m_Comp.Init(dlg.m_Scan_Count, dlg.m_Scan4_Net, dlg.m_Scan4_Factor, dlg.m_Scan4_Custom);
 
@@ -112,7 +119,7 @@ namespace Scan
 #ifdef DEBUG_SINGLE_THREAD
 				int maxThs = 1;
 #else
-				int maxThs = std::thread::hardware_concurrency();
+				int maxThs = max(1, std::thread::hardware_concurrency() - 1);
 #endif // DEBUG_SINGLE_THREAD
 
 				if (ths.size() >= maxThs)

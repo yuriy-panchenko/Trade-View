@@ -5,7 +5,7 @@
 #include "Trade View.h"
 #include "ChildView.h"
 #include "DrawChart.h"
-#include "beehive.h"
+#include "CStringDlg.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -15,7 +15,7 @@ constexpr auto
 SECTION_SETTINGS{ _T("Settings") },
 ENTRY_SHOW_INFO{ _T("ShowInfo") };
 
-constexpr COLORREF model_colors[] = { RGB(0,255,0), RGB(255,0,0), RGB(0,0,255), };
+constexpr COLORREF model_colors[] = { RGB(0,255,0), RGB(220,130,0), RGB(0,130,220), };
 
 // CChildView
 CChildView::CChildView()
@@ -125,6 +125,9 @@ void CChildView::OnPaint()
 				int ind = m_List.GetNextSelectedItem(pos);
 				auto data = m_List.GetItemData(ind);
 
+				assert(ind > -1 && ind < m_Best.size());
+				assert(data > -1 && data < m_Best.size());
+
 				for (auto p : m_Best[data].GetSubModels())
 					draw.Add(*p, model_colors[i++ % color_num]);
 
@@ -143,6 +146,8 @@ void CChildView::OnPaint()
 		{
 			int ind = m_List.GetNextSelectedItem(pos);
 			auto data = m_List.GetItemData(ind);
+			assert(ind > -1 && ind < m_Best.size());
+			assert(data > -1 && data < m_Best.size());
 			draw.Add(m_Files[data], model_colors[i++ % color_num]);
 		}
 		draw.Draw(dc, rect);
@@ -560,6 +565,9 @@ void CChildView::UpdateScanningList()
 	while (m_List.GetItemCount() < m_Best.size())
 		m_List.InsertItem(0, _T(""));
 
+	while (m_List.GetItemCount() > m_Best.size())
+		m_List.DeleteItem(0);
+
 	for (size_t i = 0; i < m_Best.size(); i++)
 		UpdateListScanResults(i);
 
@@ -656,42 +664,58 @@ void CChildView::OnFileSave()
 	info.ulFlags = BIF_USENEWUI;
 	WCHAR path[MAX_PATH + 1];
 
-	auto save_one_file = [&path](fs::path src)
+	auto save_one_file = [&path](fs::path src, CString const& new_name)
 		{
 			fs::path dst{ path };
-			dst /= src.filename();
-
-			src.replace_extension(".set");
-			dst.replace_extension(".set");
+			if (new_name.IsEmpty())
+			{
+				dst /= src.filename();
+				dst.replace_extension();
+			}
+			else dst /= new_name.GetString();
+			src.replace_extension();
 
 			try
 			{
-				fs::copy_file(src, dst);
+				auto from{ src }, to{ dst };
+				from += ".csv", to += ".csv";
+				fs::copy_file(from, to);
+				from.replace_extension(".set"), to.replace_extension(".set");
+				fs::copy_file(from, to);
 			}
 			catch (std::exception&) {}
 		};
 
-	auto save_files = [&path, save_one_file](fs::path src, char ex)
+	auto save_files = [&path, save_one_file](fs::path src, CString const& new_name, char ex)
 		{
 			fs::path dst{ path };
-			dst /= src.filename();
+			if (new_name.IsEmpty())
+			{
+				dst /= src.filename();
+				dst.replace_extension();
+			}
+			else dst /= new_name.GetString();
+			src.replace_extension();
 
-			dst.replace_extension();
 			dst += "_";
 			dst += ex;
 
-			src.replace_extension(".set");
-			dst += ".set";
-
 			try
 			{
-				fs::copy_file(src, dst);
+				auto from{ src }, to{ dst };
+				from += ".csv", to += ".csv";
+				fs::copy_file(from, to);
+				from.replace_extension(".set"), to.replace_extension(".set");
+				fs::copy_file(from, to);
 			}
 			catch (std::exception&) {}
 		};
 
+	CStringDlg dlg;
 	auto pidl = ::SHBrowseForFolder(&info);
-	if (pidl && ::SHGetPathFromIDList(pidl, path))
+	if (pidl
+		&& ::SHGetPathFromIDList(pidl, path)
+		&& dlg.DoModal() == IDOK)
 	{
 		auto const sels{ GetSelectedIndexes() };
 		assert(!sels.empty());
@@ -701,17 +725,17 @@ void CChildView::OnFileSave()
 			{
 				auto& mods{ m_Best[ind].GetSubModels() };
 				for (size_t i = 0; i < mods.size(); i++)
-					save_files(mods[i]->GetFilepath(), 'a' + (char)i);
+					save_files(mods[i]->GetFilepath(), dlg.m_Text, 'a' + (char)i);
 			}
 			else
-				save_one_file(m_Files[ind].GetFilepath());
+				save_one_file(m_Files[ind].GetFilepath(), dlg.m_Text);
 	}
 }
 
 void CChildView::OnUpdateFileSave(CCmdUI* pCmdUI)
 {
 	auto const sel{ m_List.GetSelectedCount() };
-	pCmdUI->Enable(m_isScanningMode ? sel == 1 : sel);
+	pCmdUI->Enable(sel == 1);
 }
 
 void CChildView::OnSwapTables()

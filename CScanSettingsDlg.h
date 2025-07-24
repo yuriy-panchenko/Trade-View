@@ -49,4 +49,10 @@ public:
 	CString m_Info_Text;
 	CWnd* m_pView;
 	size_t m_uModelCount;
+	int m_Con_Max;
+	int m_Con_Min;
+	int m_InTime_Max;
+	int m_InTime_Min;
+	int m_Trades_Max;
+	int m_Trades_Min;
 };

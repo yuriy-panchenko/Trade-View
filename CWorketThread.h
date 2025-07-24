@@ -35,6 +35,7 @@ private:
 	Scan::CompareObj m_objComp;
 
 	BOOL m_bWorking;
+	int m_Model_Count;
 	CEvent m_evFinished;
 	mutable CCriticalSection m_CS;
 };

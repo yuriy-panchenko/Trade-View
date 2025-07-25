@@ -5,8 +5,8 @@
 #include "Trade View.h"
 #include "MainFrm.h"
 
-#define DEBUG_SINGLE_THREAD
 #ifdef DEBUG
+#define DEBUG_SINGLE_THREAD
 #endif // DEBUG
 
 

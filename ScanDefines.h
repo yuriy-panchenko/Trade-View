@@ -129,10 +129,6 @@ namespace Scan
 			}
 			iter = find_min<BestAt>();
 		}
-		else
-		{
-			int y = 0;
-		}
 
 		if (is_better<BestAt>(iter, mb))
 		{

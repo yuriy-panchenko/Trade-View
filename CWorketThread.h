@@ -32,10 +32,9 @@ protected:
 private:
 	std::vector<TradeFile const*>::const_iterator m_itFrom, m_itEnd;
 	CScanSettingsDlg const* m_pSets;
-	Scan::CompareObj m_objComp;
+	std::unique_ptr<Scan::ModelBunch> m_BestNet, m_BestFactor, m_BestCustom;
 
 	BOOL m_bWorking;
-	int m_Model_Count;
 	CEvent m_evFinished;
 	mutable CCriticalSection m_CS;
 };

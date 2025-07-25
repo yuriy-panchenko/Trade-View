@@ -13,14 +13,29 @@ VOID CWorkerThread::OnStartScan(WPARAM, LPARAM)
 {
 	Scan::ModelBunch origin;
 	origin.Add(*m_itFrom);
-	m_objComp.Reset(m_Model_Count);
+
+	if (m_BestNet)
+		*m_BestNet = {};
+	if (m_BestFactor)
+		*m_BestFactor = {};
+	if (m_BestCustom)
+		*m_BestCustom = {};
 
 	for (auto iter{ std::next(m_itFrom) }; iter != m_itEnd; ++iter)
 	{
 		auto bunch{ origin };
 		bunch.Add(*iter);
 		if (bunch.Calculate())
-			m_objComp.Test(std::move(bunch));
+		{
+			if (m_BestNet && m_BestNet->GetNet() < bunch.GetNet())
+				*m_BestNet = bunch;
+
+			if (m_BestFactor && m_BestFactor->GetFactor() < bunch.GetFactor())
+				*m_BestFactor = bunch;
+
+			if (m_BestCustom && m_BestCustom->GetCustom() < bunch.GetCustom())
+				*m_BestCustom = bunch;
+		}
 	}
 
 	{
@@ -43,13 +58,11 @@ CWorkerThread::~CWorkerThread()
 
 BOOL CWorkerThread::InitInstance()
 {
-	// TODO:  perform and per-thread initialization here
 	return TRUE;
 }
 
 int CWorkerThread::ExitInstance()
 {
-	// TODO:  perform any per-thread cleanup here
 	return CWinThread::ExitInstance();
 }
 
@@ -57,8 +70,15 @@ void CWorkerThread::Init(CScanSettingsDlg const& dlg, std::vector<TradeFile cons
 {
 	m_itEnd = itEnd;
 	m_pSets = &dlg;
-	m_Model_Count = dlg.m_Model_Count;
-	m_objComp.Init(dlg.m_Model_Count, dlg.m_Scan4_Net, dlg.m_Scan4_Factor, dlg.m_Scan4_Custom);
+
+	m_BestNet.reset(), m_BestFactor.reset(), m_BestCustom.reset();
+
+	if (dlg.m_Scan4_Net)
+		m_BestNet = std::make_unique<Scan::ModelBunch>();
+	if (dlg.m_Scan4_Factor)
+		m_BestFactor = std::make_unique<Scan::ModelBunch>();
+	if (dlg.m_Scan4_Custom)
+		m_BestCustom = std::make_unique<Scan::ModelBunch>();
 }
 
 BOOL CWorkerThread::IsWorking() const
@@ -76,7 +96,14 @@ void CWorkerThread::Start(std::vector<TradeFile const*>::const_iterator const it
 
 Scan::BestModels CWorkerThread::GetBest()const
 {
-	return m_objComp.GetBest();
+	Scan::BestModels ret;
+	if (m_BestNet)
+		ret.push_back(*m_BestNet);
+	if (m_BestFactor)
+		ret.push_back(*m_BestFactor);
+	if (m_BestCustom)
+		ret.push_back(*m_BestCustom);
+	return ret;
 }
 
 BEGIN_MESSAGE_MAP(CWorkerThread, CWinThread)

@@ -47,3 +47,10 @@ private:
 	TradeList m_Trades;
 };
 
+namespace Scan
+{
+	using model_pair = std::pair<TradeFile const*, TradeFile const*>;
+	using pair_result = std::tuple<double, model_pair>;
+	using pair_vector = std::vector<pair_result>;
+}
+

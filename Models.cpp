@@ -44,9 +44,18 @@ namespace Scan
 		ModelBunch::ConMax = dlg.m_Con_Max;
 		ModelBunch::ConMin = dlg.m_Con_Min;
 
-		m_Comp.Init(dlg.m_Scan_Count, dlg.m_Scan4_Net, dlg.m_Scan4_Factor, dlg.m_Scan4_Custom);
+		//m_Comp.Init(dlg.m_Scan_Count, dlg.m_Scan4_Net, dlg.m_Scan4_Factor, dlg.m_Scan4_Custom);
 
 		m_Files = dlg.Filter(files);
+		auto total_scan_count{ m_Files.size() };
+		if (total_scan_count)
+		{
+			total_scan_count *= total_scan_count - 1;
+			total_scan_count >>= 1;
+		}
+		m_NetTable.reserve(total_scan_count);
+		m_FactorTable.reserve(total_scan_count);
+		m_CustomTable.reserve(total_scan_count);
 
 		if (m_Files.size() < 2)
 			::AfxMessageBox(_T("There nothing to scan!"), MB_OK | MB_ICONERROR);
@@ -125,7 +134,7 @@ namespace Scan
 				if (ths.size() >= maxThs)
 				{
 					ret = wait();
-					mods.UpdateBest(ret->GetBest());
+					mods.CollectResults(ret);
 				}
 				else
 				{
@@ -141,7 +150,7 @@ namespace Scan
 			get_thread()->Start(iter);
 
 		while (auto pTh{ wait() })
-			mods.UpdateBest(pTh->GetBest());
+			mods.CollectResults(pTh);
 
 		std::vector<HANDLE> hs;
 		for (auto p : ths)
@@ -162,10 +171,24 @@ namespace Scan
 			m_bStopping = FALSE;
 		}
 
+		auto sort_results = [](auto& arr)
+			{
+				std::sort(arr.begin(), arr.end(), [](const auto& a, const auto& b) { return get<0>(a) > get<0>(b); });
+			};
+
+		sort_results(m_NetTable);
+		sort_results(m_FactorTable);
+		sort_results(m_CustomTable);
+
 		static_cast<CMainFrame*>(theApp.GetMainWnd())->GetChildView().PostMessage((UINT)CChildView::Message::WM_SCAN_FINISHED, 1);
 	}
 
-	void Models::UpdateBest(BestModels&& mods)
+	void operator+=(CWorkerThread::ScanResults& dst, CWorkerThread::ScanResults const& src)
+	{
+		dst.insert(dst.end(), src.begin(), src.end());
+	}
+
+	void Models::CollectResults(CWorkerThread* pTh)
 	{
 		CSingleLock _o{ &m_CS, TRUE };
 
@@ -174,11 +197,15 @@ namespace Scan
 
 		bool bUpdate{ false };
 
-		for (auto& m : mods)
-			bUpdate |= m_Comp.Test(m);
+		if (m_pSets->m_Scan4_Net)
+			m_NetTable += pTh->GetResults<BestModels::Net>();
+		if (m_pSets->m_Scan4_Factor)
+			m_FactorTable += pTh->GetResults<BestModels::Factor>();
+		if (m_pSets->m_Scan4_Custom)
+			m_CustomTable += pTh->GetResults<BestModels::Custom>();
 
-		UINT const msg{ (UINT)(bUpdate ? CChildView::Message::WM_BETTER_RESULT : CChildView::Message::WM_SCAN_FINISHED) };
-		static_cast<CMainFrame*>(theApp.GetMainWnd())->GetChildView().PostMessage(msg);
+		//UINT const msg{ (UINT)(bUpdate ? CChildView::Message::WM_BETTER_RESULT : CChildView::Message::WM_SCAN_FINISHED) };
+		static_cast<CMainFrame*>(theApp.GetMainWnd())->GetChildView().PostMessage((UINT)CChildView::Message::WM_SCAN_FINISHED);
 	}
 
 	void Models::SetInfoTotalScanCount(size_t total)
@@ -187,13 +214,72 @@ namespace Scan
 		m_Info.total = total;
 	}
 
-	BestModels Models::GetBest()const
+	std::vector<model_pair> Models::Unite(pair_vector const& arr, size_t const K) const
 	{
-		return m_Comp.GetBest();
+		std::set<TradeFile const*> used;
+		std::vector<model_pair> selected;
+
+		for (const auto& [score, p] : arr)
+			if (!used.count(p.first) && !used.count(p.second))
+			{
+				selected.push_back(p);
+				used.insert(p.first);
+				used.insert(p.second);
+				if (selected.size() == K)
+					break;
+			}
+
+		return selected;
+	}
+
+	void operator+=(std::vector<model_pair>& dst, std::vector<model_pair> const& src)
+	{
+		dst.insert(dst.end(), src.begin(), src.end());
+	}
+
+	std::vector<model_pair> Models::Unite(size_t const K) const
+	{
+		std::vector<model_pair> ret, un;
+		un += Unite(m_NetTable, K);
+		un += Unite(m_FactorTable, K);
+		un += Unite(m_CustomTable, K);
+
+		for (auto p : un)
+			if (std::find(ret.begin(), ret.end(), p) == ret.end())
+				ret.push_back(p);
+#ifdef DEBUG
+			else
+			{
+				int y = 0;
+			}
+#endif // DEBUG
+
+
+		return ret;
 	}
 
 	Models::INFO Models::GetInfo() const
 	{
+		CSingleLock _o{ &m_CS, TRUE };
 		return m_Info;
+	}
+
+	BestModels Models::CollectBest(size_t const K) const
+	{
+		auto to_bunch = [](auto p)
+			{
+				ModelBunch mb;
+				mb.Add(p.first);
+				mb.Add(p.second);
+				assert(mb.Calculate());
+				return mb;
+			};
+	
+		BestModels ret;
+
+		for (auto model : Unite(K))
+			ret.push_back(to_bunch(model));
+
+		return ret;;
 	}
 }

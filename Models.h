@@ -22,14 +22,17 @@ namespace Scan
 
 		BOOL IsScanning()const;
 		BOOL IsStoppingScan()const;
-		BestModels GetBest()const;
+		//BestModels GetBest()const;
 		INFO GetInfo()const;
+		BestModels CollectBest(size_t)const;
 
 	private:
 		static UINT DoWork(LPVOID);
 		void OnWaitThreadFinished();
-		void UpdateBest(BestModels&&);
+		void CollectResults(CWorkerThread*);
 		void SetInfoTotalScanCount(size_t total);
+		std::vector<model_pair> Unite(Scan::pair_vector const&, size_t)const;
+		std::vector<model_pair> Unite(size_t)const;
 
 	private:
 		CScanSettingsDlg const* m_pSets;
@@ -37,7 +40,8 @@ namespace Scan
 		CWinThread* m_pWaitTh;
 		mutable CCriticalSection m_CS;
 		BOOL m_bStopping;
-		Scan::CompareObj m_Comp;
+		//Scan::CompareObj m_Comp;
+		Scan::pair_vector m_NetTable, m_FactorTable, m_CustomTable;
 		INFO m_Info;
 	};
 }

@@ -579,7 +579,8 @@ LRESULT CChildView::OnScanFinished(WPARAM wParam, LPARAM)
 {
 	if (wParam)	//	all scans
 	{
-
+		m_Best = m_Scan.CollectBest(m_SetsDlg.m_Scan_Count);
+		LoadBest();
 	}
 	else	//	single scan
 	{
@@ -592,8 +593,8 @@ LRESULT CChildView::OnScanFinished(WPARAM wParam, LPARAM)
 
 LRESULT CChildView::OnBetterResult(WPARAM, LPARAM)
 {
-	m_Best = m_Scan.GetBest();
-	UpdateScanningList();
+	//m_Best = m_Scan.GetBest();
+	//UpdateScanningList();
 	Invalidate();
 	return 0;
 }

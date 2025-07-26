@@ -271,7 +271,7 @@ namespace Scan
 				ModelBunch mb;
 				mb.Add(p.first);
 				mb.Add(p.second);
-				assert(mb.Calculate());
+				mb.Calculate();
 				return mb;
 			};
 	
@@ -280,6 +280,6 @@ namespace Scan
 		for (auto model : Unite(K))
 			ret.push_back(to_bunch(model));
 
-		return ret;;
+		return ret;
 	}
 }

@@ -56,6 +56,12 @@ protected:
 	afx_msg void OnUpdateSwapTables(CCmdUI* pCmdUI);
 	afx_msg void OnShowInfo();
 	afx_msg void OnUpdateShowInfo(CCmdUI* pCmdUI);
+	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
+	afx_msg void OnUpdateIdsListItemCount(CCmdUI* pCmdUI);
+	afx_msg void OnClear();
+	afx_msg void OnUpdateClear(CCmdUI* pCmdUI);
+	afx_msg void OnFilterModels();
+	afx_msg void OnUpdateFilterModels(CCmdUI* pCmdUI);
 	DECLARE_MESSAGE_MAP()
 
 private:
@@ -84,7 +90,5 @@ private:
 	CFont m_fontScanning;
 	int m_iListWidth;
 	CFont m_InfoFont;// , m_InfoFontBold;
-public:
-	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
 };
 

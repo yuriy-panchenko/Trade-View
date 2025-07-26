@@ -26,7 +26,7 @@ CChildView::CChildView()
 {
 	LOGFONT lf{};
 
-	lf.lfHeight = 26;
+	lf.lfHeight = 46;
 	lf.lfWeight = FW_BOLD;
 	wcscpy_s(lf.lfFaceName, _T("Arial"));
 	m_fontScanning.CreateFontIndirect(&lf);
@@ -68,6 +68,11 @@ BEGIN_MESSAGE_MAP(CChildView, CWnd)
 	ON_COMMAND(ID_SHOW_INFO, &CChildView::OnShowInfo)
 	ON_UPDATE_COMMAND_UI(ID_SHOW_INFO, &CChildView::OnUpdateShowInfo)
 	ON_WM_ERASEBKGND()
+	ON_UPDATE_COMMAND_UI(IDS_LIST_ITEM_COUNT, &CChildView::OnUpdateIdsListItemCount)
+	ON_COMMAND(ID_CLEAR, &CChildView::OnClear)
+	ON_UPDATE_COMMAND_UI(ID_CLEAR, &CChildView::OnUpdateClear)
+	ON_COMMAND(ID_FILTER_MODELS, &CChildView::OnFilterModels)
+	ON_UPDATE_COMMAND_UI(ID_FILTER_MODELS, &CChildView::OnUpdateFilterModels)
 END_MESSAGE_MAP()
 
 // CChildView message handlers
@@ -783,8 +788,31 @@ void CChildView::OnUpdateShowInfo(CCmdUI* pCmdUI)
 
 BOOL CChildView::OnEraseBkgnd(CDC* pDC)
 {
-	// TODO: Add your message handler code here and/or call default
-
 	//return CWnd::OnEraseBkgnd(pDC);
 	return TRUE;
+}
+
+void CChildView::OnUpdateIdsListItemCount(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetText(CScanSettingsDlg::InsertApostrofie(m_isScanningMode ? m_Best.size() : m_Files.size()));
+}
+
+void CChildView::OnClear()
+{
+	// TODO: Add your command handler code here
+}
+
+void CChildView::OnUpdateClear(CCmdUI* pCmdUI)
+{
+	// TODO: Add your command update UI handler code here
+}
+
+void CChildView::OnFilterModels()
+{
+	// TODO: Add your command handler code here
+}
+
+void CChildView::OnUpdateFilterModels(CCmdUI* pCmdUI)
+{
+	// TODO: Add your command update UI handler code here
 }

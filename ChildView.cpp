@@ -6,6 +6,7 @@
 #include "ChildView.h"
 #include "DrawChart.h"
 #include "CStringDlg.h"
+#include "CFilterDialog.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -157,52 +158,13 @@ void CChildView::Draw(CDC& dc, CRect const& canvas)
 
 void CChildView::DrawInfo(CDC& dc, CRect const& canvas)
 {
-	int i{ 0 };
 	constexpr int color_num{ sizeof(model_colors) / sizeof(COLORREF) };
 	auto pos{ m_List.GetFirstSelectedItemPosition() };
 	auto rect{ canvas };
 	auto const iSave{ dc.SaveDC() };
 	dc.SelectObject(&m_InfoFont);
 
-	auto draw_item = [&dc, this](SetFile::value_type& val, COLORREF color, CRect& r)
-		{
-			dc.SetTextColor(color);
-			dc.DrawText(val.first.c_str(), (int)val.first.length(), r, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_CALCRECT);
-			dc.DrawText(val.first.c_str(), (int)val.first.length(), r, DT_LEFT | DT_TOP | DT_SINGLELINE);
-			r.left = r.right + 5;
-
-			dc.SetTextColor(RGB(200, 200, 200));
-			dc.DrawText(_T("="), 1, r, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_CALCRECT);
-			dc.DrawText(_T("="), 1, r, DT_LEFT | DT_TOP | DT_SINGLELINE);
-			r.left = r.right + 5;
-
-			//dc.SelectObject(&m_InfoFontBold);
-			dc.SetTextColor(color);
-			dc.DrawText(val.second.c_str(), (int)val.second.length(), r, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_CALCRECT);
-			dc.DrawText(val.second.c_str(), (int)val.second.length(), r, DT_LEFT | DT_TOP | DT_SINGLELINE);
-
-			r.top = r.bottom;
-		};
-
-	auto draw_text = [&](SetFile&& sets, COLORREF color)
-		{
-			auto r{ rect };
-
-			if (sets.empty())
-			{
-				CString const str{ _T("No settings file found!") };
-				dc.SetTextColor(color);
-				dc.DrawText(str, r, DT_LEFT | DT_TOP | DT_CALCRECT);
-				dc.DrawText(str, r, DT_LEFT | DT_TOP);
-			}
-			else for (auto& item : sets)
-			{
-				draw_item(item, color, r);
-				r.left = rect.left;
-			}
-
-			rect.top = r.bottom + 5;
-		};
+	std::vector<SetFile> sfs;
 
 	while (pos)
 	{
@@ -211,9 +173,94 @@ void CChildView::DrawInfo(CDC& dc, CRect const& canvas)
 
 		if (m_isScanningMode)
 			for (auto pFile : m_Best[data].GetSubModels())
-				draw_text(pFile->GetSettings(), model_colors[i++ % color_num]);
+				sfs.push_back(pFile->GetSettings());
 		else
-			draw_text(m_Files[data].GetSettings(), model_colors[i++ % color_num]);
+			sfs.push_back(m_Files[data].GetSettings());
+	}
+
+
+	if (!sfs.empty())
+	{
+		using column = std::vector<std::wstring>;
+		std::vector<column> tab(1);
+
+		for (auto& item : sfs.front())
+			tab.front().push_back(item.first);
+
+		for (auto& sf : sfs)
+		{
+			tab.push_back({});
+
+			for (auto& key : tab.front())
+				tab.back().push_back(sf[key]);
+		}
+
+
+		auto calc_size = [&dc](column const& clm)->CSize
+			{
+				CSize ret{};
+
+				for (auto& str : clm)
+				{
+					CRect rect{};
+					dc.DrawText(str.c_str(), rect, DT_SINGLELINE | DT_CALCRECT);
+					ret.cx = max(ret.cx, rect.Width());
+					ret.cy = max(ret.cy, rect.Height());
+				}
+				return ret;
+			};
+
+		auto find_column_widths = [&tab, calc_size]
+			{
+				std::vector ret(tab.size(), CSize{});
+				auto iter{ ret.begin() };
+
+				int h{ 0 };
+
+				for (auto& col : tab)
+				{
+					*iter = calc_size(col);
+					h = max(h, iter->cy);
+					++iter;
+				}
+
+				for (auto& s : ret)
+					s.cy = h;
+
+				return ret;
+			};
+
+		auto const widths{ find_column_widths() };
+		auto iter{ widths.begin() };
+
+
+		auto draw_single = [&dc](CRect& rect, column const& clm, auto flag)
+			{
+				for (auto& str : clm)
+				{
+					dc.DrawText(str.c_str(), (int)str.length(), rect, flag);
+					auto h{ rect.Height() };
+					rect.top = rect.bottom;
+					rect.bottom += h;
+				}
+			};
+
+		rect = canvas;
+		rect.right = rect.left;
+
+		for (auto& col : tab)
+		{
+			rect.left = rect.right + 4;
+			rect.right = rect.left + iter->cx;
+			rect.top = canvas.top;
+			rect.bottom = rect.top + iter->cy;
+
+			auto i{ std::distance(widths.begin(),iter) };
+			dc.SetTextColor(i ? model_colors[(i - 1) % 3] : RGB(200, 200, 200));
+			draw_single(rect, col, DT_SINGLELINE | DT_VCENTER | (i ? DT_RIGHT : DT_RIGHT));
+
+			++iter;
+		}
 	}
 
 	dc.RestoreDC(iSave);
@@ -229,7 +276,7 @@ void CChildView::OnAddFolder()
 	{
 		BeginWaitCursor();
 		LoadFolder(path);
-		LoadFiles();
+		LoadList(FALSE);
 		Invalidate();
 		EndWaitCursor();
 	}
@@ -794,25 +841,75 @@ BOOL CChildView::OnEraseBkgnd(CDC* pDC)
 
 void CChildView::OnUpdateIdsListItemCount(CCmdUI* pCmdUI)
 {
-	pCmdUI->SetText(CScanSettingsDlg::InsertApostrofie(m_isScanningMode ? m_Best.size() : m_Files.size()));
+	pCmdUI->SetText(InsertApostrofie(m_isScanningMode ? m_Best.size() : m_Files.size()));
 }
 
 void CChildView::OnClear()
 {
-	// TODO: Add your command handler code here
+	m_Best.clear();
+	m_Files.clear();
+	LoadList(FALSE);
+	Invalidate();
 }
 
 void CChildView::OnUpdateClear(CCmdUI* pCmdUI)
 {
-	// TODO: Add your command update UI handler code here
+	pCmdUI->Enable((!m_Files.empty() || !m_Best.empty()) && !m_Scan.IsScanning());
 }
 
 void CChildView::OnFilterModels()
 {
-	// TODO: Add your command handler code here
+	CFilterDialog dlg{ this };
+	if (dlg.DoModal() == IDOK)
+	{
+		std::vector<TradeFile*> files;
+		files.reserve(m_Files.size());
+
+		for (auto& file : m_Files)
+		{
+			auto& stat{ file.GetStats() };
+			if (dlg.m_UseMinProfit && file.Net() < dlg.m_Min_Profit)
+				continue;
+			if (dlg.m_UseMinTrades && file.GetTrades().size() < dlg.m_Min_Trades)
+				continue;
+
+			files.push_back(&file);
+		}
+
+		if (dlg.m_Filter_Duplicates)
+		{
+			decltype(files) temp;
+			temp.reserve(files.size());
+
+			for (auto iter_a{ files.begin() }, iter_b{ iter_a }; iter_a != files.end(); iter_a++)
+			{
+				for (iter_b = std::next(iter_a); iter_b != files.end(); iter_b++)
+					if ((*iter_a)->Net() == (*iter_b)->Net()
+						&& (*iter_a)->GetTrades().size() == (*iter_b)->GetTrades().size())
+						break;
+
+				if (iter_b == files.end())
+					temp.push_back(*iter_a);
+			}
+
+			if (temp.size() != files.size())
+				std::swap(files, temp);
+		}
+
+		if (files.size() != m_Files.size())
+		{
+			decltype(m_Files) temp(files.size());
+			auto iter{ temp.begin() };
+			for (auto p : files)
+				*iter++ = std::move(*p);
+			std::swap(m_Files, temp);
+
+			LoadList(FALSE);
+		}
+	}
 }
 
 void CChildView::OnUpdateFilterModels(CCmdUI* pCmdUI)
 {
-	// TODO: Add your command update UI handler code here
+	pCmdUI->Enable(!m_Files.empty() && m_Best.empty() && !m_Scan.IsScanning() && !m_isScanningMode);
 }

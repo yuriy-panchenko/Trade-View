@@ -10,6 +10,7 @@
 #define IDR_TradeViewTYPE               130
 #define ID_LIST_CTRL                    310
 #define IDD_STRING_DLG                  312
+#define IDD_FILTER_DLG                  314
 #define IDC_USE_MINIMUM_PROFIT          1000
 #define IDC_MINIMUM_PROFIT              1001
 #define IDC_USE_MINIMUM_TRADES          1002
@@ -23,6 +24,8 @@
 #define IDC_TEXT                        1013
 #define IDC_INTIME_MIN                  1014
 #define IDC_INTIME_MAX                  1015
+#define IDC_CHECK1                      1015
+#define IDC_FILTER_DUPLICATES           1015
 #define IDC_TRADES_MIN                  1016
 #define IDC_TRADES_MAX                  1017
 #define IDC_CON_MIN                     1018
@@ -39,9 +42,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        314
+#define _APS_NEXT_RESOURCE_VALUE        316
 #define _APS_NEXT_COMMAND_VALUE         32782
-#define _APS_NEXT_CONTROL_VALUE         1015
+#define _APS_NEXT_CONTROL_VALUE         1016
 #define _APS_NEXT_SYMED_VALUE           311
 #endif
 #endif

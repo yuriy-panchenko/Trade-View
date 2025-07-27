@@ -32,4 +32,6 @@ public:
 	DECLARE_MESSAGE_MAP()
 };
 
+CString InsertApostrofie(size_t val);
+
 extern CTradeViewApp theApp;

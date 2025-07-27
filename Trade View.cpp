@@ -163,5 +163,13 @@ void CTradeViewApp::OnAppAbout()
 
 // CTradeViewApp message handlers
 
+CString InsertApostrofie(size_t val)
+{
+	CString ret;
+	ret.Format(_T("%I64u"), val);
 
+	for (int i = ret.GetLength() - 3; i > 0; i -= 3)
+		ret.Insert(i, L' ');
 
+	return ret;
+}

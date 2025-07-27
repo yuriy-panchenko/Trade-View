@@ -46,7 +46,11 @@ namespace Scan
 
 		//m_Comp.Init(dlg.m_Scan_Count, dlg.m_Scan4_Net, dlg.m_Scan4_Factor, dlg.m_Scan4_Custom);
 
-		m_Files = dlg.Filter(files);
+		//m_Files = dlg.Filter(files);
+		m_Files.reserve(files.size());
+		for (auto& file : files)
+			m_Files.push_back(&file);
+
 		auto total_scan_count{ m_Files.size() };
 		if (total_scan_count)
 		{

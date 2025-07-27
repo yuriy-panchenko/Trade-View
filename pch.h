@@ -18,6 +18,8 @@
 #include <set>
 #include "framework.h"
 
+#define KEY_SETTINGS			_T("Settings")
+
 namespace fs = std::filesystem;
 using SetFile = std::unordered_map<std::wstring, std::wstring>;
 

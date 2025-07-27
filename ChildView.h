@@ -77,18 +77,20 @@ private:
 	void LoadList(BOOL const isScanning);
 	void LoadList();
 	std::set<int> GetSelectedIndexes();
-	void DrawInfo(CDC&,CRect const&);
+	void DrawInfo(CDC&, CRect const&);
 	void Draw(CDC&, CRect const&);
 
 	CSortListCtrl m_List;
 	CRect m_Canvas;
-	std::vector<TradeFile> m_Files;
-	Scan::BestModels m_Best;
-	BOOL m_isScanningMode,m_doShowInfo;
-	Scan::Models m_Scan;
-	CScanSettingsDlg m_SetsDlg;
 	CFont m_fontScanning;
 	int m_iListWidth;
-	CFont m_InfoFont;// , m_InfoFontBold;
+	CFont m_InfoFont;
+
+	CScanSettingsDlg m_SetsDlg;
+
+	std::vector<TradeFile> m_Files;
+	Scan::BestModels m_Best;
+	BOOL m_isScanningMode, m_doShowInfo;
+	Scan::Models m_Scan;
 };
 

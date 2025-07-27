@@ -188,6 +188,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="beehive.h" />
+    <ClInclude Include="CFilterDialog.h" />
     <ClInclude Include="ChildView.h" />
     <ClInclude Include="CScanSettingsDlg.h" />
     <ClInclude Include="CStringDlg.h" />
@@ -208,6 +209,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="beehive.cpp" />
+    <ClCompile Include="CFilterDialog.cpp" />
     <ClCompile Include="ChildView.cpp" />
     <ClCompile Include="CScanSettingsDlg.cpp" />
     <ClCompile Include="CStringDlg.cpp" />

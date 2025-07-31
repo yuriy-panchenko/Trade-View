@@ -17,6 +17,7 @@ SECTION_SETTINGS{ _T("Settings") },
 ENTRY_SHOW_INFO{ _T("ShowInfo") };
 
 constexpr COLORREF model_colors[] = { RGB(0,255,0), RGB(220,130,0), RGB(0,130,220), };
+CString CChildView::s_InitialFolder{ _T("") };
 
 // CChildView
 CChildView::CChildView()
@@ -193,7 +194,6 @@ void CChildView::DrawInfo(CDC& dc, CRect const& canvas)
 		}
 	}
 
-
 	if (!sfs.empty())
 	{
 		using column = std::vector<std::wstring>;
@@ -281,15 +281,27 @@ void CChildView::DrawInfo(CDC& dc, CRect const& canvas)
 	dc.RestoreDC(iSave);
 }
 
+int CChildView::BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
+{
+	if (uMsg == BFFM_INITIALIZED)
+		::SendMessage(hwnd, BFFM_SETSELECTION, TRUE, (LPARAM)s_InitialFolder.GetString());
+	return 0;
+}
+
 void CChildView::OnAddFolder()
 {
 	BROWSEINFO info = {};
+	info.hwndOwner = GetSafeHwnd();
+	info.lpszTitle = L"Select a scan files folder";
+	info.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE | BIF_NONEWFOLDERBUTTON;
+	info.lpfn = BrowseCallbackProc;
 	WCHAR path[MAX_PATH + 1];
 
 	auto pidl = ::SHBrowseForFolder(&info);
 	if (pidl && ::SHGetPathFromIDList(pidl, path))
 	{
 		BeginWaitCursor();
+		s_InitialFolder = path;
 		LoadFolder(path);
 		LoadList(FALSE);
 		Invalidate();

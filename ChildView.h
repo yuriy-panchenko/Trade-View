@@ -79,6 +79,7 @@ private:
 	std::set<int> GetSelectedIndexes();
 	void DrawInfo(CDC&, CRect const&);
 	void Draw(CDC&, CRect const&);
+	static int BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData);
 
 	CSortListCtrl m_List;
 	CRect m_Canvas;
@@ -92,5 +93,7 @@ private:
 	Scan::BestModels m_Best;
 	BOOL m_isScanningMode, m_doShowInfo;
 	Scan::Models m_Scan;
+
+	static CString s_InitialFolder;
 };
 

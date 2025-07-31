@@ -166,6 +166,13 @@ void CChildView::DrawInfo(CDC& dc, CRect const& canvas)
 
 	std::vector<IniFile<std::wstring>> sfs;
 
+	auto custom_to_wstring = [](double db)->std::wstring
+		{
+			CString str;
+			str.Format(_T("%.2f"), db);
+			return str.GetString();
+		};
+
 	while (pos)
 	{
 		int const index{ m_List.GetNextSelectedItem(pos) };
@@ -173,9 +180,17 @@ void CChildView::DrawInfo(CDC& dc, CRect const& canvas)
 
 		if (m_isScanningMode)
 			for (auto pFile : m_Best[data].GetSubModels())
+			{
 				sfs.push_back(pFile->GetSettingsFileText());
+				sfs.back().insert({ L"Trades", std::to_wstring(pFile->GetTrades().size()) });
+				sfs.back().insert({ L"Custom", custom_to_wstring(pFile->GetStats().custom) });
+			}
 		else
+		{
 			sfs.push_back(m_Files[data].GetSettingsFileText());
+			sfs.back().insert({ L"Trades", std::to_wstring(m_Files[data].GetTrades().size()) });
+			sfs.back().insert({ L"Custom", custom_to_wstring(m_Files[data].GetStats().custom) });
+		}
 	}
 
 

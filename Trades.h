@@ -1,4 +1,5 @@
 #pragma once
+#include "SettingsFile.h"
 struct TRADES_STATISTIC
 {
 	long long profit, loss, iWon, iLost, timeIn, timeTotal;
@@ -29,14 +30,13 @@ public:
 	void SetID(int id) { m_ID = id; }
 	inline fs::path const& GetFilepath()const { return m_Filepath; }
 	fs::path GetSettingsFilePath()const;
-	SetFile GetSettings()const;
+	CString GetSettingsFileText()const;
 
 private:
 	void ParseText(std::istream&);
 	static TradeSummary ParseLine(std::string const& line);
 	void UpdateStatistics();
 	std::vector<double> GetCumulative()const;
-	CString GetSettingsFileText()const;
 	static bool CalculateLinearRegression(std::vector<double> const chartline, double& k, double& b);
 	static bool  CalculateStdError(std::vector<double> const& data, double  a_coef, double  b_coef, double& std_err);
 

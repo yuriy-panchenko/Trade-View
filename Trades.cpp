@@ -54,49 +54,6 @@ fs::path TradeFile::GetSettingsFilePath() const
 	return ret;
 }
 
-SetFile TradeFile::GetSettings() const
-{
-	auto split = [](CString const& str)->SetFile::value_type
-		{
-			auto const eqIndex{ str.Find(_T('=')) };
-			std::wstring key{ str.Left(eqIndex) }, value{ str.Right(str.GetLength() - eqIndex - 1) };
-			auto dotIndex{ value.find(L".") };
-			if (dotIndex != std::wstring::npos)
-			{
-				auto riter{ value.rbegin() };
-				for (; riter != value.rend(); ++riter)
-					if (*riter == L'.')
-					{
-						++riter;
-						break;
-					}
-					else if (*riter != L'0')
-						break;
-
-				value.erase(riter.base(), value.end());
-			}
-
-			return { key, value };
-		};
-
-	SetFile ret;
-
-	auto text{ GetSettingsFileText() };
-
-	if (!text.IsEmpty())
-	{
-		int pos{ 0 };
-		auto str{ text.Tokenize(_T("\r\n"), pos) };
-		while (!str.IsEmpty())
-		{
-			ret.insert(split(str));
-			str = text.Tokenize(_T("\r\n"), pos);
-		}
-	}
-
-	return ret;
-}
-
 void TradeFile::ParseText(std::istream& iss)
 {
 	std::string line;

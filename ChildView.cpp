@@ -33,8 +33,8 @@ CChildView::CChildView()
 	m_fontScanning.CreateFontIndirect(&lf);
 
 	lf.lfHeight = 16;
-	lf.lfWeight = FW_NORMAL;
-	wcscpy_s(lf.lfFaceName, _T("Times New Roman"));
+	lf.lfWeight = FW_BOLD;
+	wcscpy_s(lf.lfFaceName, _T("Terminal"));
 	m_InfoFont.CreateFontIndirect(&lf);
 
 	//lf.lfWeight = FW_BOLD;
@@ -164,7 +164,7 @@ void CChildView::DrawInfo(CDC& dc, CRect const& canvas)
 	auto const iSave{ dc.SaveDC() };
 	dc.SelectObject(&m_InfoFont);
 
-	std::vector<SetFile> sfs;
+	std::vector<IniFile<std::wstring>> sfs;
 
 	while (pos)
 	{
@@ -173,9 +173,9 @@ void CChildView::DrawInfo(CDC& dc, CRect const& canvas)
 
 		if (m_isScanningMode)
 			for (auto pFile : m_Best[data].GetSubModels())
-				sfs.push_back(pFile->GetSettings());
+				sfs.push_back(pFile->GetSettingsFileText());
 		else
-			sfs.push_back(m_Files[data].GetSettings());
+			sfs.push_back(m_Files[data].GetSettingsFileText());
 	}
 
 
@@ -184,8 +184,8 @@ void CChildView::DrawInfo(CDC& dc, CRect const& canvas)
 		using column = std::vector<std::wstring>;
 		std::vector<column> tab(1);
 
-		for (auto& item : sfs.front())
-			tab.front().push_back(item.first);
+		for (auto& item : sfs.front().keys())
+			tab.front().push_back(item);
 
 		for (auto& sf : sfs)
 		{
